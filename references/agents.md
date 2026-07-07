@@ -61,20 +61,20 @@ There are **21 built-in agents** (registry: `packages/shared/src/features/agents
 - **`html`** (Immersive HTML) — formats messages with custom HTML/CSS. `runtimeDisabled`: it injects formatting into the last user prompt rather than running as a separate agent call.
 
 ### Parallel
-- **`echo-chamber`** (Echo Chamber) — absent characters / sidebar reactions to the current scene.
+- **`echo-chamber`** (Echo Chamber) — absent characters / sidebar reactions to the current scene. *(v2.1)* Fires only on fresh user messages; it does **not** trigger on `/continue` continuation rewrites.
 - **`combat`** (Combat) — turn-based combat mechanics computed alongside narration.
 
 ### Post-processing
-- **`prose-guardian`** (Prose Guardian) — repetition analysis, rhetorical-device selection, sentence variety, sensory rotation. *Phase-locked to post_processing.*
-- **`continuity`** (Continuity Checker) — flags/repairs contradictions with established lore. *Phase-locked to post_processing.*
+- **`prose-guardian`** (Prose Guardian) — repetition analysis, rhetorical-device selection, sentence variety, sensory rotation. *Defaults to post_processing (phase overridable — see below).*
+- **`continuity`** (Continuity Checker) — flags/repairs contradictions with established lore. *Defaults to post_processing (phase overridable — see below).*
 - **`world-state`** (World State) — tracks date/time, weather, location, and present characters.
 - **`character-tracker`** (Character Tracker) — present characters, moods, relationships, appearance/outfit, stats.
 - **`custom-tracker`** (Custom Tracker) — user-defined tracking (any JSON state).
 - **`persona-stats`** (Persona Stats) — updates player/character RPG stats.
 - **`quest`** (Quest Tracker) — quest objectives, completion, rewards.
-- **`expression`** (Expression Engine) — picks character sprite expressions from emotional content.
-- **`background`** (Background) — picks/generates the scene background image.
-- **`illustrator`** (Illustrator) — generates scene illustrations via an image provider (default `runInterval: 5`).
+- **`expression`** (Expression Engine) — picks character sprite expressions from emotional content. *(v2.1)* Expression portrait sprites can also be produced as short **video** clips via a Video Generation connection and converted to looping GIFs, then saved into expression slots (Advanced > Video Generation sets duration/prompt; `animatedExpressionClipDurationSeconds` default 3s). See character-cards.md / architecture.md for the media path.
+- **`background`** (Background) — picks/generates the scene background image. *(v2.1)* In Game Mode, a manually selected chat background now overrides automatic GM scene-background selection until the user removes it (mirrors the tracker field-lock "manual pin wins" pattern).
+- **`illustrator`** (Illustrator) — generates scene illustrations via an image provider (default `runInterval: 5`). *(v2.1)* Distinct from the optional **Game Illustrator** "Dynamic LLM Prompt Generation" toggle (per-chat `gameImageDynamicPromptEnabled`; UI: Chat Settings > Agents > Illustrator), which asks the chat/prompt LLM to rewrite Game Mode NPC-portrait, location-background, and key-moment illustration prompts before image gen. GM-created NPC profile descriptions are rebuilt from current game state at asset-send time and sent as required canonical visual guidance for portrait prompts (preserved when generated avatars are written back to NPC metadata).
 - **`lorebook-keeper`** (Lorebook Keeper) — auto-writes lorebook entries from the ongoing story.
 - **`card-evolution-auditor`** (Card Evolution Auditor) — proposes character-card edits for user approval.
 - **`spotify`** (Music DJ) — suggests/controls music for the scene; supports both Spotify and YouTube via the `musicProvider` setting.
@@ -82,6 +82,8 @@ There are **21 built-in agents** (registry: `packages/shared/src/features/agents
 - **`haptic`** (Haptic Feedback) — drives haptic devices via Intiface Central running locally.
 
 Each built-in has a default prompt template in `packages/shared/src/constants/agent-prompts.ts`. **Users can override any template** via the Agent Editor.
+
+**Phase overrides on built-ins (v2.1):** editing a built-in agent's phase in the Agent Editor is now honored in storage, normal generation, and manual retries — for Echo Chamber, Prose Guardian, Continuity, Immersive HTML, Expression, and Music DJ — instead of resetting to the built-in default. Agents like Prose Guardian and Continuity still **default** to `post_processing`, but a user's phase override now persists and takes effect. (Earlier docs describing these phases as fixed/force-pinned no longer apply.)
 
 ## Custom Agents
 
@@ -135,6 +137,8 @@ Post-processing agents can **opt in** to see the current turn's data: `preGenInj
 ### Game Mode & mode gating
 v2.0 added **Game-Mode custom-agent selection** in Chat Settings (the picker sits at the bottom of the Agents section). Built-ins are also mode-gated via `modeAllowlist` (e.g. `cyoa`/`combat`/`world-state` → roleplay/visual-novel; `director`/`html` → roleplay-only), so not every agent is offered in every mode.
 
+**(v2.1)** Game Mode also exposes per-chat **media prompt preset** selectors in Chat Settings > Agents — Illustration Prompt, Animation Prompt, and Game Video Prompt — with read-only built-ins (Still Keyframes, Comic Page, Colored Manga, B&W Manga, Cinematic Scene Video) that users copy into chat-local editable versions. These pair with the Game Illustrator toggle (see the `illustrator` entry above). The full media-preset doc lives in architecture.md.
+
 ### Exporting & importing agents (v2.0)
 Custom agents export/import as a single JSON payload **or** as a **folder/zip package** (`packages/client/src/lib/agent-transfer.ts`), so a complex agent can travel with related files/code instead of just one JSON blob.
 
@@ -178,7 +182,7 @@ Each agent can have its own `connectionId`. Useful patterns:
 The built-in Gemma 4 E2B sidecar is specifically designed to handle tracker agents locally, keeping tokens off your main provider bill.
 
 ### Conflicting agents
-If you enable both `world-state` and a custom tracker that also manages location/weather, they can step on each other. Disable one, or use the `custom-tracker` with locked fields.
+If you enable both `world-state` and a custom tracker that also manages location/weather, they can step on each other. Disable one, or use the `custom-tracker` with locked fields. *(v2.1)* Roleplay/Game trackers support locking individual fields, and tracker / custom-agent update agents respect per-field locks — a locked field can't be bypassed by an AI update that renames or replaces the locked row at the same position.
 
 ### Agent prompt templates
 Default templates are decent but generic. For production use, customize the `promptTemplate` to match your specific style, genre, or constraints. The default prompts are in `packages/shared/src/constants/agent-prompts.ts` — reading them gives a good starting point for custom variants.
@@ -226,3 +230,6 @@ All under `/api/agents` (`packages/server/src/routes/agents.routes.ts`):
 ## UI Location
 
 **Agents Panel** (right sidebar → sparkles icon). Shows built-in agents (with toggles and editable prompt templates) and a Custom Tools subsection. Each agent has a full editor for its prompt, connection override, and settings.
+
+### Agent Suite (v2.1)
+Opened from the **Chat Settings drawer's Agents section**, the Agent Suite lists the agents active in the current chat and lets you view and edit everything they have **stored** — agent memory, tracker state (Scene / Present Characters / Active Quests slices), and custom-agent outputs. Edits can be made **manually** or via **AI-assisted rewrites**: select text (or rewrite-all), give an instruction, optionally add grounding via the **Add Context** picker (character cards / active-lorebook entries, max 20 sources / 100k chars), and choose a connection. It reads/writes the existing `/api/agents/memory` and `/runs` endpoints (source: `AgentSuiteModal.tsx`).

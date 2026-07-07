@@ -2,7 +2,7 @@
 
 This is the consultant's main reference. When a user describes a goal, walk through these questions in order. Stop at the first one that fits.
 
-## The Seven Questions
+## The Nine Questions
 
 ### 1. Is the entire knowledge set small and completely stable?
 **Small** = under ~2000 tokens of reference material. **Stable** = won't change for months.
@@ -45,6 +45,10 @@ See `references/custom-tools.md` for the webhook pattern.
 Actions = effects in the world. Creating a file, updating a row in your DB, sending a Slack message, triggering a workflow, fetching a specific record.
 
 → **Custom tool.** Static for stubs and testing. Webhook for anything that reaches outside the engine (network calls, databases, third-party APIs). Script for pure computation (math, string transforms, date calculations) where no I/O is needed.
+
+**Two common "capabilities" that are NOT hand-built custom tools:**
+- **Generating or animating images/video** is a *native* Marinara capability — attach a Video Generation (or image) connection, don't stand up a webhook. See Q8.
+- **Controlling a Home Assistant setup** — Marinara can **auto-generate** the webhook tools for you from your HA entities and re-sync them (needs `WEBHOOK_LOCAL_URLS_ENABLED=true`, since HA is local plain-HTTP). See `references/custom-tools.md`.
 
 **Fits:** "Look up the WordPress config for client X," "create a character based on this description" (this is literally what Mari does), "compute the optimal grow schedule given these inputs."
 
@@ -98,6 +102,36 @@ See `references/extensions.md` for the API surface.
 **Fits:** "My support assistant needs to log every conversation to our CRM," "the character needs to remember things globally across all my users," "I want vector search across 10 years of company docs."
 
 **Doesn't fit:** Anything inside the engine's native scope — use the native features.
+
+---
+
+### 8. Does the character need to generate or animate images/video? (v2.1)
+Media generation = creating a picture or a short video clip — a scene illustration, an animated portrait, an in-call avatar, a storyboard keyframe.
+
+→ **Native media generation — a Video Generation (or image) connection, NOT a webhook.** Video is a first-class capability in 2.1: add a **Video Generation** connection and point the relevant surface at it. There is no need to build a custom tool for this.
+
+The surface depends on where the video should appear:
+- **Gallery "Animate"** — turn a generated image into a short clip.
+- **Game Mode storyboards / scene videos** — animate GM narration keyframes.
+- **Animated expressions** — expression portrait sprites rendered as short clips → looping GIFs.
+- **Conversation-call video presence** — cached avatar clips played in-call.
+
+**Fits:** "Can my character generate a video of the scene?", "I want an animated portrait", "make the avatar move during a call."
+
+**Doesn't fit:** Nothing here — do **not** route video requests to a webhook custom tool (Q3/Q4). See `references/architecture.md` and `references/character-cards.md` for the connection setup and surfaces.
+
+---
+
+### 9. Does the user just need to rewrite/clean up prompt or output *text*? (Regex Scripts)
+Text transform = find/replace on the strings flowing through the pipeline — strip a leftover prefix, swap a name on the way in or out, hide a control token, tidy formatting. **No** callable capability, **no** DOM change — just string rewriting.
+
+→ **Regex Scripts** (SillyTavern-style). Scoped **per-character** and **per-preset**; a script is a regex `find` + `replace` applied to prompt and/or model output. SillyTavern regex scripts import over directly. This is a distinct modding surface — don't misuse a custom tool (Q4) or a UI extension (Q6) for text transforms.
+
+**Fits:** "Strip the `<think>` block from replies," "always rewrite 'the assistant' to the character's name," "clean up markdown the model over-formats."
+
+**Doesn't fit:** Anything that needs to *call out* or *compute* (that's a tool) or change the UI (that's an extension).
+
+See `references/custom-tools.md` → Regex Scripts and `docs/REGEX_SCRIPTS.md`. *(Added in an intermediate 2.0.x update and documented in the 2.1 doc refresh — an established surface, not brand-new in 2.1.)*
 
 ---
 

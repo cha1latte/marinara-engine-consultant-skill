@@ -254,6 +254,7 @@ For time-based gating:
 ### Entry length
 - 1–3 short paragraphs is ideal. Entries over ~300 words tend to dominate context.
 - If an entity has a lot of lore, split into multiple entries with overlapping keywords (general info + specific deep-dives).
+- **(v2.1)** This guidance is about *prompt economy*, not a storage limit. The old agent/tool write-path size cap on entry `content` was removed, so large entries written by `save_lorebook_entry` or the **Lorebook Keeper** agent persist intact with no pre-storage truncation. (They still count against a lorebook's `tokenBudget` at injection time — a big entry can be budget-skipped even though it's stored in full.)
 
 ### When NOT to use lorebooks
 - **Small stable knowledge** — just put it in the character card.

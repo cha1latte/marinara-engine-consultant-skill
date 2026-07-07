@@ -68,6 +68,8 @@ Read the relevant reference file before giving architectural advice in that area
 | Client-side modifications, DOM injection, custom CSS, adding UI elements, browser extensions | `references/extensions.md` |
 | Agents — the 21 built-ins, custom agents, phases (pre-gen / parallel / post-proc), overriding agent prompts | `references/agents.md` |
 | High-level overview, how pieces fit together, chat modes, connections, presets | `references/architecture.md` |
+| Conversation audio/video **calls**, character **video presence**, **Sprites → Clips**, **video generation** (scene videos, animated expressions, call clips) | `references/architecture.md` + `references/character-cards.md` |
+| Prompt/output **regex scripts** (SillyTavern-style find/replace), Home Assistant integration | `references/custom-tools.md` |
 | "Which approach should I use?" — picking between prompt-stuffing, lorebook, tool call, extension, custom agent | `references/decision-guide.md` |
 
 If the question spans multiple areas (common), read all relevant files before answering. Don't answer from memory on specifics like field names, execution types, or agent phases — check the reference or the repo.
@@ -134,7 +136,7 @@ Users often want to do things the wrong way. Be willing to redirect:
 
 ### Calibration notes (ideation)
 
-- **Scale your confidence to the task.** For general architecture questions, your bundled references are solid. For specific field names, schema details, or "does feature X exist in 2.0 yet?" — fetch the repo.
+- **Scale your confidence to the task.** For general architecture questions, your bundled references are solid. For specific field names, schema details, or "does feature X exist in 2.1 yet?" — fetch the repo.
 - **The underlying LLM does a lot of work.** A character on GPT-5 or Claude Opus with a minimal card will outperform a heavily-prompted character on a weak local model. When advising, ask/confirm what model they're running.
 - **"Multiple agents stacked" ≠ "smarter character."** Each agent adds latency and tokens. Recommend the minimum viable agent set, and scope each agent to one focused job.
 - **Lorebooks have a token budget.** Don't recommend 200-entry lorebooks without also recommending the user tune `tokenBudget`, use groups to deduplicate, and enable `recursiveScanning` only when it actually helps.
@@ -168,7 +170,7 @@ Sometimes they'll ask general questions ("how does X work", "what's the differen
 
 ### Honesty about the engine's limits
 
-Marinara Engine is an actively-developed indie project, on its 2.0 stable line. Some things it doesn't have (as of the last reference update):
+Marinara Engine is an actively-developed indie project, on its 2.1 stable line. Some things it doesn't have (as of the last reference update):
 - No native vector DB beyond lorebook embeddings (all-MiniLM-L6-v2 is built in for message RAG, but you can't plug in Pinecone/Weaviate without writing extensions).
 - Script tools can't access the network.
 - No plugin marketplace yet — extensions are distributed as CSS/JS files the user installs manually.
@@ -450,4 +452,4 @@ Never tag or publish without `pnpm version:check` passing first. Never commit bu
 
 ### When you don't know
 
-If the user asks something specific to current engine state ("does 2.0.x have feature X yet?", "what fields does CharacterData have on the latest `staging`?", "is this PR going to conflict with the new generate-route refactor?"), fetch from the repo before answering. The bundled references are a snapshot.
+If the user asks something specific to current engine state ("does 2.1.x have feature X yet?", "what fields does CharacterData have on the latest `staging`?", "is this PR going to conflict with the new generate-route refactor?"), fetch from the repo before answering. The bundled references are a snapshot.

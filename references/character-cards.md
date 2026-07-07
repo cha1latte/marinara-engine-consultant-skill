@@ -95,6 +95,8 @@ Mari's `system_prompt` is blank in her card, but the server injects a large `MAR
 ### What Mari can actually do (v2.0)
 Her hidden actions are content-creation + navigation helpers, not a generic agent (`docs/PROFESSOR_MARI.md`): create personas, create/update character cards, update personas, create lorebooks (optionally with starter entries), create Conversation/Roleplay chats, navigate to panels/settings tabs, fetch existing items to inspect before advising/editing, and read public Fandom/MediaWiki pages. She is a guide that takes a few *safe* actions — she fetches an item before editing it, and she does **not** run the full Game-Mode setup wizard for you. Beyond the seed-prompt content commands, her Home-screen *workspace agent* can also create/edit **agents, browser extensions, custom tools, and themes** via a `mari` CLI (`mari db` over `agent_configs`/`custom_tools`/`installed_extensions`, `mari themes`), requesting browser approval before database changes.
 
+**(v2.1)** Mari's **preset** support is now *structured*: `app_data` `preset.create` / `preset.update` commands can build prompt groups, prompt sections, and preset variables/choice blocks in a **single reversible operation** (#3207). *(Contributor note: `pnpm mari -- --help` at the repo root exposes the built Mari CLI from a source checkout (#3208); its flag parser was fixed so boolean flags like `--tail`/`--raw`/`--patch` no longer swallow positional args (#3222).)*
+
 ### Command protocol vs. real tool calling
 Mari uses a **custom regex-parsed command protocol** (`[create_persona: ...]`, `[create_character: ...]`, `[fetch: ...]`, `[navigate: ...]`). This is NOT public — you can't add new meta-commands of your own.
 
@@ -133,7 +135,7 @@ This flag is Mari-specific. The special **prompt injection** is gated by the har
 
 ### Group chat member
 - Normal character fields, plus:
-- `extensions.talkativeness` — tune based on how vocal they should be
+- `extensions.talkativeness` — tune based on how vocal they should be. **(v2.1)** In merged group Conversations, autonomous-message accounting (saved attribution, follow-up count, per-character daily budget) is charged to the *selected* autonomous character, not the first group member (#3299).
 - Clear `personality` — distinguishable voice from other group members
 - Lorebook — shared group lore if applicable
 
@@ -151,7 +153,23 @@ Characters can be exported as:
 
 ## Sprite System
 
-Characters can have expression sprites for VN-style overlays in roleplay mode. Sprites live in a folder keyed to the character; filenames are expression names (`happy.png`, `sad.png`, `angry.png`, `smug.png`, etc.). The Expression Engine agent picks the matching sprite per message. There's also an automated sprite generation feature (uses image gen + a pose prompt) introduced in recent versions.
+Characters can have expression sprites for VN-style overlays in roleplay mode. Sprites live in a folder keyed to the character; filenames are expression names (`happy.png`, `sad.png`, `angry.png`, `smug.png`, etc.). The Expression Engine agent picks the matching sprite per message. There's also an automated sprite generation feature (uses image gen + a pose prompt) introduced in recent versions. **(v2.1)** Expression portraits can additionally be generated as short *animated* sprites: the Expression Engine can drive a Video Generation connection to produce a brief expression clip, convert it to a looping GIF, and save it into the expression slot. Clip length is set under `Advanced > Video Generation` (`animatedExpressionClipDurationSeconds`, default 3s, range 1–8) alongside prompt templates (`packages/shared/src/constants/video-generation-settings.ts`; `packages/server/src/routes/sprites.routes.ts`).
+
+## Sprites → Clips (Video-Call Presence) (v2.1)
+
+Distinct from the VN expression **Sprite System** above, both the **Character *and* Persona editors** gained a **Sprites → Clips** tab holding reusable *video-call presence clips* — short avatar videos played during Conversation-mode audio/video calls. There are **six fixed clip kinds** — `idle`, `talking`, `laughing`, `angry`, `crying`, `sighing` (`CONVERSATION_CALL_CHARACTER_VIDEO_CLIP_KINDS`, `packages/shared/src/types/conversation-call.ts:10-26`) — plus **named custom clips**, capped at **128 per character** (`CUSTOM_CLIP_LIMIT = 128`, `packages/server/src/services/conversation/call-character-videos.service.ts:115`).
+
+Each clip carries a `status` (`missing | generating | ready | error`) and an `origin` (`generated | uploaded`). Clips can be **generated per-slot** from an empty or errored card (no full batch required) or **uploaded as MP4** (bounded by `CALL_VIDEO_CLIP_UPLOAD_MAX_BYTES`); uploads support **non-destructive trim** via `trimStartSeconds` / `trimEndSeconds` (`conversation-call.ts:95-96,109-110`). The per-character/-persona manifest is `ConversationCallCharacterVideoManifest` (`clips[]` + `customClips[]`, `conversation-call.ts:88-121`), served at `GET /api/characters/:id/gallery/clips` (`packages/server/src/routes/characters.routes.ts:768`).
+
+### Character Video Presence
+When `callCharacterVideoEnabled` is on (`packages/shared/src/types/tts.ts:146`, default `false`) Marinara uses the **'Default for Videos'** connection to play these cached avatar clips **in-call**, cued from TTS output and returning to `idle` after speech. `callAutomaticVideoClipsEnabled` (`tts.ts:148`) auto-generates the minimum `idle`/`talking` clips. (The clips themselves are produced by the Video Generation subsystem — see `references/architecture.md`.)
+
+### In-call commands ([custom_clip], [react:])
+In **call-only** chat a character can emit two hidden, engine-parsed commands. These are regex-parsed like Mari's protocol (below) and are **engine-emitted & gated, not user-authorable meta-commands or public custom tools** — a card author does not write them into `first_mes`/`mes_example`:
+- `[custom_clip: label="short title", prompt="visual action or look"]` — generates one custom call clip and saves it into that character's **Sprites → Clips** custom library (cap 128). Note the **real bracket-arg syntax** (a `label` and a `prompt`); a bare `[custom_clip]` is *not* valid. Double-gated by `callCharacterVideoEnabled && callCustomVideoClipsEnabled` (`tts.ts:150`) and only offered when a video connection exists (`packages/server/src/routes/conversation-calls.routes.ts:736-740,1060`).
+- `[react: emoji="😂"]` (also `[react: emoji=":custom_name:"]`) — reacts to the user's latest written call message (`conversation-calls.routes.ts:734`).
+
+(The broader Conversation-mode `[react:]` grammar, including character-to-character targeting, is documented in `references/architecture.md`.)
 
 ## Common Mistakes
 
@@ -172,6 +190,7 @@ Characters (`/api/characters`, non-exhaustive — see `packages/server/src/route
 - `POST /export-bulk` — bulk export
 - `POST /:id/duplicate`; `GET /:id/versions`, `POST /:id/versions/:versionId/restore`
 - `GET /:id/gallery` (+ `/gallery/upload`, `/gallery/:imageId`), `POST /:id/avatar`, `DELETE /:id/avatar`
+- **(v2.1)** Galleries now hold **images *and* videos** — Character/Persona galleries split into **Images / Videos** tabs (the old 'clips' were renamed 'Videos'). Video + clip routes (persona mirror ~`characters.routes.ts:1823`): `GET /:id/gallery/videos/file/:filename`, `POST /:id/gallery/videos/upload`, `POST /:id/gallery/clips/upload`, `PATCH /:id/gallery/clips/:clipId/trim`, `DELETE /:id/gallery/clips/:clipId`. MP4 upload for both gallery videos and Sprites → Clips, non-destructive trim, and delete; custom-clip library capped at 128, uploads bounded by `CALL_VIDEO_CLIP_UPLOAD_MAX_BYTES`.
 - `POST /:id/embedded-lorebook/import`
 - Groups: `GET /groups/list`, `GET /groups/:id`, `POST /groups`, `PATCH /groups/:id`, `DELETE /groups/:id` (note `/groups/list`, not `GET /groups`)
 
