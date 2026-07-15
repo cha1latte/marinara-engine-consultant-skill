@@ -41,6 +41,8 @@ The server POSTs `{ tool: <name>, arguments: <args> }` to `webhookUrl` as JSON, 
 
 **The URL must be HTTPS, and local/private targets are blocked by default.** The request goes through an SSRF-hardened `safeFetch`: only `https:` is allowed, and loopback/private/reserved hosts (`localhost`, `127.0.0.1`, `192.168.x.x`, etc.) are rejected unless the server sets `WEBHOOK_LOCAL_URLS_ENABLED=true`. So a `http://localhost:3100` dev backend won't work out of the box — expose it over HTTPS (e.g. a tunnel) or set `WEBHOOK_LOCAL_URLS_ENABLED=true` for local testing.
 
+**Home Assistant integration:** Marinara has a first-class Home Assistant integration that **auto-generates webhook custom tools from your HA entities** — you don't hand-write them. Re-syncing updates the already-generated tools in place rather than duplicating them. Because Home Assistant is reached over the local network as plain HTTP, these generated tools hit the exact SSRF gate above, so the integration **requires `WEBHOOK_LOCAL_URLS_ENABLED=true`** (same knob as the localhost note). Source of truth: `docs/integrations/home-assistant.md`. (The integration landed in an intermediate 2.0.x update; the 2.1 doc refresh corrected its docs/defaults — the current port, the `WEBHOOK_LOCAL_URLS_ENABLED=true` requirement, and the re-sync-updates-existing behavior.)
+
 **This is the primary integration point for real work.** Use it to connect the character to:
 - Your own backend (Express, Fastify, Cloudflare Worker, Lambda, anything that speaks HTTP).
 - n8n, Zapier, Make, or any workflow automation tool.
@@ -122,16 +124,17 @@ The model sees the schema and uses it to generate well-formed arguments. **Descr
 
 ## Built-In Tools (Not Custom, but Same Protocol)
 
-Marinara ships ~17 built-in tools that work the same way (the executor switch in `tool-executor.ts`):
+Marinara ships ~18 built-in tools that work the same way (the executor switch in `tool-executor.ts`):
 - `roll_dice` — parses dice notation like `"2d6+3"` and returns rolls, sum, total.
 - `update_game_state` — GM updates world state in Game Mode.
 - `set_expression` — character changes its sprite.
 - `trigger_event` — trigger an in-game event.
 - `search_lorebook` — semantic search over lorebook entries.
-- `save_lorebook_entry` — write a new lorebook entry.
+- `save_lorebook_entry` — write a new lorebook entry. **(v2.1)** The agent/tool write-path size cap on entry content was removed — large entries written via this tool (or by the Lorebook Keeper agent) persist intact, with no pre-storage truncation.
 - `edit_chat_message` — edit an existing chat message.
 - `read_chat_summary`, `append_chat_summary` — read/append the chat's rolling summary.
 - `read_chat_variable`, `write_chat_variable` — per-chat key/value state.
+- `update_about_me` **(v2.2)** — lets the character rewrite its own "about me" profile. **Opt-in and default-off** (the user has to enable it per chat), and **Conversation-mode only** (server-enforced; it's not exposed in Game Mode). Takes `scope` + `content`: `scope: "public"` changes the character's real cross-chat bio that shows in every chat and is **surfaced to the user for approval first**; `scope: "chat"` writes a bio **private to that one conversation** (no approval needed). `content` may be empty to clear it.
 - Spotify/music: `spotify_get_playlists`, `spotify_get_playlist_tracks`, `spotify_search`, `spotify_play`, `spotify_set_volume`, `spotify_get_current_playback`.
 
 Custom tools run through the same executor — they just hit the `default` case in the switch that tries the custom tools list.
@@ -250,3 +253,15 @@ Tools are attached to chats via chat settings. A tool created in the panel is av
 - `POST /api/custom-tools` — create
 - `PATCH /api/custom-tools/:id` — update
 - `DELETE /api/custom-tools/:id` — delete
+
+## Regex Scripts — Text Transforms, Not Tool Calls
+
+Distinct from custom tools: **Regex Scripts** are SillyTavern-style find/replace transforms that rewrite text as it moves through the pipeline (prompts and/or model output). They don't give the model a callable capability — they mutate strings. Reach for this when a user asks *"how do I transform / clean up / rewrite the prompt or the output text"* (strip a leftover prefix, swap a name on the way in or out, hide a control token, tidy formatting) — **not** a custom tool, and **not** a UI extension.
+
+- **What it does:** each script pairs a regex `find` with a `replace`, applied to prompt and/or output text — the SillyTavern regex model.
+- **Scope:** scripts are scoped **per-character** (Character editor's regex section, `CharacterRegexSection.tsx`) and **per-preset** (Presets panel, `PresetsPanel.tsx`). Backed by a `regexScripts` DB table (`regex-scripts.ts`) with seeded defaults (`seed-regex.ts`); applied on the client via `use-apply-regex.ts`.
+- **SillyTavern-import-compatible:** existing ST regex scripts import over, the same way lorebooks/world-info do.
+- **ReDoS safety validator (relaxed in v2.2):** each `find` pattern is screened for catastrophic-backtracking risk before it's saved/run. As of 2.2 the check is less aggressive — **linear, delimiter-bounded field patterns are now allowed** (e.g. `([^|]+)\|([^|]+)\|([^|]+)` for splitting pipe-delimited fields), which previously got flagged. **Overlapping broad-unbounded chains** (the actual catastrophic-backtracking shapes, e.g. stacked `.*`/`.+` with overlapping character classes) are still **rejected**. If a script is refused, rewrite it with bounded classes rather than greedy wildcards.
+- **Source of truth:** `docs/REGEX_SCRIPTS.md`.
+
+(Regex Scripts were added in an intermediate 2.0.x update and documented in the 2.1 doc refresh — an established surface, not brand-new in 2.1.)
