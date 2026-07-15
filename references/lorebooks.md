@@ -175,6 +175,8 @@ A `superRefine` enforces that a global lorebook (`isGlobal: true`) **cannot also
 - Persona-specific knowledge (about the user's role) → persona-scoped.
 - Current scene state, one-session plot flags → chat-scoped.
 
+**(v2.2)** Lorebooks can also activate inside **Noodle** timeline refreshes via an opt-in "Lorebook context" setting (off by default), reusing the group-chat multi-character lorebook system with a Noodle-specific token budget that scales with active character count — see `references/architecture.md` → Noodle.
+
 ## Token Budget Management
 
 The lorebook's `tokenBudget` caps total injected content per turn. If more entries match than fit, lower-`order` entries inject first (constant entries and group weighting also factor in); entries that don't fit are skipped — the World Info Inspector surfaces which were budget-skipped (a 1.6/2.0 visibility feature).
@@ -208,6 +210,8 @@ Three related v2.0 surfaces handle "the user mentioned a concept without the exa
 - **Knowledge Sources** (`/api/knowledge-sources`) — upload text files / PDFs that the Knowledge Retrieval agent can scan alongside lorebooks.
 
 **Embeddings:** entries are embedded via a configured **embedding connection** (e.g. the Local Model sidecar's `/api/sidecar/v1/embeddings`); per-entry `excludeFromVectorization` (and the lorebook-level "No Vector") opt entries out. Embedding isn't purely automatic — it depends on having an embedding source configured.
+
+**(v2.2) Vector search as keyword-miss fallback.** Semantic/vector similarity now also acts as a fallback for **ordinary keyed entries**: when an entry's keyword matching misses, vector similarity can still activate it, subject to the same score thresholds, max-results cap, filters, and probability gates. Previously this semantic path was unreachable for keyed entries.
 
 ## Activation Conditions (Game-State Gating)
 
@@ -288,3 +292,9 @@ Marinara imports SillyTavern lorebooks/world-info directly via Settings → Impo
 
 - **Lorebooks panel** (right sidebar) — create, edit, attach to characters/chats.
 - **World Info Inspector** — live view of which entries are active in the current chat, with token usage and keyword reasons.
+
+### Editor conveniences (v2.2 / 2.1.1)
+
+- **Batch editing** — select many entries (up to thousands) and apply one boolean setting — recursion, case sensitivity, whole-word matching, vector exclusion, or `enabled` — to all of them in a single atomic update. Good for flipping a lorebook-wide toggle without touching entries one by one.
+- **Sort by entry status** — the editor can sort entries by their entry status (2.1.1).
+- **Character Lorebook tab** — **Edit Linked Lorebook** was renamed **Edit Embedded Lorebook** (2.1.1). A **Remove from card** action unlinks/clears an embedded lorebook — it works even for cards with no separate linked copy. (Row delete only unlinks the standalone; the embedded copy stays until you Remove from card.)

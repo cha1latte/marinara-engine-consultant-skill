@@ -2,6 +2,15 @@
 
 This is the consultant's main reference. When a user describes a goal, walk through these questions in order. Stop at the first one that fits.
 
+## First: which chat mode?
+
+Before architecture, pick the **mode** the experience runs in — this is orthogonal to the surfaces below (a card + lorebook + tools stack works in any of them):
+
+- **Conversation** — default one-on-one (or small group) chat. Pick it for an assistant, a companion, or a straightforward back-and-forth.
+- **Roleplay** — immersive narrative RP with a character or cast; the model narrates scenes and drives story. Pick it for story/character immersion.
+- **Game** — GM-driven interactive fiction (Game Mode): the engine runs a game master over narration, storyboards, and scene beats. Pick it for structured, quest-like play.
+- **Noodle (v2.2)** — Marinara's fake social network: invited characters (and optional random users) post, reply, poll, like, repost, and mention each other on a persistent, refreshing timeline; **personas participate directly**, and social memory carries over into Conversation/Roleplay/Game. Pick it for social-feed / timeline personas — a living multi-character social simulation rather than a direct chat. See `references/architecture.md` for the full Noodle section.
+
 ## The Nine Questions
 
 ### 1. Is the entire knowledge set small and completely stable?

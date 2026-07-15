@@ -50,7 +50,7 @@ Runs **after** the main model finishes. Receives the generated message and can e
 
 ## Built-In Agents
 
-There are **21 built-in agents** (registry: `packages/shared/src/features/agents/agent-registry.generated.ts`; canonical ids in `BUILT_IN_AGENT_IDS`, `packages/shared/src/types/agent.ts`). Listed by phase, with the `id` you reference in config and the display name.
+There are **22 built-in agents** (registry: `packages/shared/src/features/agents/agent-registry.generated.ts` — count `BUILT_IN_AGENT_MANIFESTS`; canonical ids in `BUILT_IN_AGENT_IDS`, `packages/shared/src/types/agent.ts`). Listed by phase, with the `id` you reference in config and the display name.
 
 > **Retired — don't reference these:** `prompt-reviewer`, `response-orchestrator`, `schedule-planner`, `chat-summary`, `autonomous-messenger`, `youtube`, `secret-plot-driver` are in `RETIRED_BUILT_IN_AGENT_IDS` and are no longer built-ins. (Chat summary survives only as a prompt constant, not an agent.)
 
@@ -67,21 +67,22 @@ There are **21 built-in agents** (registry: `packages/shared/src/features/agents
 ### Post-processing
 - **`prose-guardian`** (Prose Guardian) — repetition analysis, rhetorical-device selection, sentence variety, sensory rotation. *Defaults to post_processing (phase overridable — see below).*
 - **`continuity`** (Continuity Checker) — flags/repairs contradictions with established lore. *Defaults to post_processing (phase overridable — see below).*
-- **`world-state`** (World State) — tracks date/time, weather, location, and present characters.
-- **`character-tracker`** (Character Tracker) — present characters, moods, relationships, appearance/outfit, stats.
+- **`world-state`** (World State) — tracks date/time, weather, location, and present characters. *(v2.2)* No longer a fixed built-in field set: users can add **custom fields** and toggle **per-field hide** controls, with inline editing and lock-aware persistence, surfaced in both the Tracker Panel and Roleplay HUD (#3518).
+- **`character-tracker`** (Character Tracker) — present characters, moods, relationships, appearance/outfit, stats. *(v2.2)* Also supports user-defined **custom fields** and per-field hide/lock like World State. Stat values may be **structured objects** — `{ name, value, max, color }` (e.g. HP/MP bars), normalized by `rpg-stats` — not just plain numbers/strings; the Present Characters tracker now renders these safely instead of crashing (#3563).
 - **`custom-tracker`** (Custom Tracker) — user-defined tracking (any JSON state).
-- **`persona-stats`** (Persona Stats) — updates player/character RPG stats.
+- **`persona-stats`** (Persona Stats) — updates player/character RPG stats. Stat pools use the structured `{ name, value, max, color }` shape (see Character Tracker).
 - **`quest`** (Quest Tracker) — quest objectives, completion, rewards.
 - **`expression`** (Expression Engine) — picks character sprite expressions from emotional content. *(v2.1)* Expression portrait sprites can also be produced as short **video** clips via a Video Generation connection and converted to looping GIFs, then saved into expression slots (Advanced > Video Generation sets duration/prompt; `animatedExpressionClipDurationSeconds` default 3s). See character-cards.md / architecture.md for the media path.
 - **`background`** (Background) — picks/generates the scene background image. *(v2.1)* In Game Mode, a manually selected chat background now overrides automatic GM scene-background selection until the user removes it (mirrors the tracker field-lock "manual pin wins" pattern).
-- **`illustrator`** (Illustrator) — generates scene illustrations via an image provider (default `runInterval: 5`). *(v2.1)* Distinct from the optional **Game Illustrator** "Dynamic LLM Prompt Generation" toggle (per-chat `gameImageDynamicPromptEnabled`; UI: Chat Settings > Agents > Illustrator), which asks the chat/prompt LLM to rewrite Game Mode NPC-portrait, location-background, and key-moment illustration prompts before image gen. GM-created NPC profile descriptions are rebuilt from current game state at asset-send time and sent as required canonical visual guidance for portrait prompts (preserved when generated avatars are written back to NPC metadata).
+- **`illustrator`** (Illustrator) — generates scene illustrations via an image provider (default `runInterval: 5`). *(v2.2)* The default Illustrator prompt rules were updated to carry available character **build, clothing/outfit, and appearance** details into the generated image prompt instead of leaving the image model to infer them. *(v2.1)* Distinct from the optional **Game Illustrator** "Dynamic LLM Prompt Generation" toggle (per-chat `gameImageDynamicPromptEnabled`; UI: Chat Settings > Agents > Illustrator), which asks the chat/prompt LLM to rewrite Game Mode NPC-portrait, location-background, and key-moment illustration prompts before image gen. GM-created NPC profile descriptions are rebuilt from current game state at asset-send time and sent as required canonical visual guidance for portrait prompts (preserved when generated avatars are written back to NPC metadata).
 - **`lorebook-keeper`** (Lorebook Keeper) — auto-writes lorebook entries from the ongoing story.
 - **`card-evolution-auditor`** (Card Evolution Auditor) — proposes character-card edits for user approval.
 - **`spotify`** (Music DJ) — suggests/controls music for the scene; supports both Spotify and YouTube via the `musicProvider` setting.
 - **`cyoa`** (CYOA Choices) — generates in-character choices after a response.
 - **`haptic`** (Haptic Feedback) — drives haptic devices via Intiface Central running locally.
+- **`about-me-keeper`** (About Me Keeper) — *(v2.2, 22nd built-in)* keeps a character's "about me" current on a cadence (`runInterval` default 8), updating either the public card profile via the existing approval flow or a private, chat-scoped override. **Conversation-only and opt-in** (off by default; in `CONVERSATION_ALLOWED_AGENT_IDS`, `resultType: about_me_update`) and **hidden from the Roleplay agents library** (`libraryHidden`) — it won't appear in the manually addable list outside Conversation mode.
 
-Each built-in has a default prompt template in `packages/shared/src/constants/agent-prompts.ts`. **Users can override any template** via the Agent Editor.
+Each built-in has a default prompt template in `packages/shared/src/constants/agent-prompts.ts`. **Users can override any template** via the Agent Editor. *(v2.2)* When an overridden template is assembled as XML, **literal contract tags** the agent depends on (e.g. `<chat_summary>`, `<existing_entries>`) are honored verbatim; only values inserted through macros are escaped (#3548) — so a custom template can keep those structural tags intact without them being mangled.
 
 **Phase overrides on built-ins (v2.1):** editing a built-in agent's phase in the Agent Editor is now honored in storage, normal generation, and manual retries — for Echo Chamber, Prose Guardian, Continuity, Immersive HTML, Expression, and Music DJ — instead of resetting to the built-in default. Agents like Prose Guardian and Continuity still **default** to `post_processing`, but a user's phase override now persists and takes effect. (Earlier docs describing these phases as fixed/force-pinned no longer apply.)
 
@@ -139,6 +140,8 @@ v2.0 added **Game-Mode custom-agent selection** in Chat Settings (the picker sit
 
 **(v2.1)** Game Mode also exposes per-chat **media prompt preset** selectors in Chat Settings > Agents — Illustration Prompt, Animation Prompt, and Game Video Prompt — with read-only built-ins (Still Keyframes, Comic Page, Colored Manga, B&W Manga, Cinematic Scene Video) that users copy into chat-local editable versions. These pair with the Game Illustrator toggle (see the `illustrator` entry above). The full media-preset doc lives in architecture.md.
 
+**(v2.2)** A registered **Noodle Timeline Voice & Tone** prompt override (Settings > Generations > Image Generation Prompt Overrides) lets the tone/creative-freedom portion of Noodle's refresh prompt be user-rewritten, while its structured-action and output-format rules stay hardcoded outside the override so a rewrite can't break refresh generation. Noodle isn't an agent — see references/architecture.md for the Noodle refresh pipeline.
+
 ### Exporting & importing agents (v2.0)
 Custom agents export/import as a single JSON payload **or** as a **folder/zip package** (`packages/client/src/lib/agent-transfer.ts`), so a complex agent can travel with related files/code instead of just one JSON blob.
 
@@ -172,6 +175,8 @@ Rule of thumb:
 Every enabled agent costs a separate LLM call. A chat with 8 agents enabled will make 9 total LLM calls per turn (8 agents + the main response). Token cost and latency add up fast.
 
 **Recommendation for most characters:** 0–3 agents. More only if the project specifically benefits.
+
+*(v2.2)* Roleplay tracker agents support **per-agent manual scheduling**: individual trackers can be excluded from automatic post-turn runs and fired on demand from the HUD, instead of forcing the whole tracker suite into all-or-nothing manual mode (#3522) — a good way to keep an expensive tracker off the per-turn path without disabling it.
 
 ### Choosing the agent's LLM
 Each agent can have its own `connectionId`. Useful patterns:

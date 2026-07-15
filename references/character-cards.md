@@ -43,8 +43,20 @@ Characters in Marinara Engine follow the **V2 Character Card spec** (`chara_card
       hp: { value: number, max: number },
     },
     isBuiltInAssistant: boolean,    // Mari only
+    // Conversation-mode-only fields (optional; absent on non-convo cards) — see below:
+    convoDisplayName: string,       // sender label distinct from `name`
+    convoDisplayNameInCard: boolean, // toggle: declare the display name in the prompt
+    aboutMe: string,                // Discord-style "about me" blurb
+    convoBehavior: {                // Conversation-only behavior directive
+      instruction: string,
+      insertionStrategy: "constant_before" | "constant_after" | "post_history_replace"
+        | "post_history_before" | "post_history_after" | "macro",  // default constant_after
+    },
+    aboutMeSources: { ... },        // which fields feed the about-me AI-write (see below)
     // (the extensions object still allows arbitrary passthrough keys too)
   },
+  // phoneticName lives as a top-level character/persona column (not in extensions):
+  phoneticName: string,             // pronunciation spelling for Conversation Call TTS
   character_book: CharacterBook | null,  // embedded lorebook (optional)
 }
 ```
@@ -72,12 +84,34 @@ Not all fields get sent to the model on every turn. Here's roughly what happens:
 
 **Practical implication:** anything you want the model to *always* know goes in `description` / `personality` / `system_prompt`. Anything it only needs when a keyword is mentioned goes in the lorebook (either character-scoped or a separate file).
 
+**(v2.2)** The advanced prompt fields — `system_prompt`, `post_history_instructions`, and `extensions.depth_prompt` — now apply across **Conversation and Game modes too**, not just Roleplay. A card built for Conversation can carry the same system/post-history/depth steering it would in Roleplay.
+
 ## Character vs. Persona: A Critical Distinction
 
 **Character** = an AI entity the user chats with.
 **Persona** = the user's own identity in the chat.
 
 They have similar fields but serve opposite roles. If the user asks "how do I give my character a detailed backstory," you're building a character. If they ask "how do I tell the AI about *me*," you're building a persona. The engine substitutes `{{user}}` in prompts with the active persona's name and injects the persona's data into the prompt too.
+
+Both a character's metadata and a persona's now lead with a **Title / comment** field placed directly below **Name** in the primary identity block (synced with the editor-header field) — a short human label for the card, distinct from the model-facing `name`.
+
+## Conversation-mode Profile
+
+These fields live on the character/persona `extensions` schema (`character.schema.ts:30-74`) and are **Conversation-mode only** — they're never sent in Roleplay / VN / Game mode. Characters and personas carry the same profile columns, and Professor Mari's `character.create` / `persona.create` (and `mari personas create`) can populate them.
+
+- **`convoDisplayName`** — a live sender label shown above the character's messages, distinct from the card `name`. The **`convoDisplayNameInCard`** toggle additionally declares the display name inside the prompt so the model maps it back to the card — mainly useful in **group Conversations**, where generation instructions, speaker parsing, labels, typing events, and base-name matching all honor it.
+- **`aboutMe`** — a Discord-style "about me" blurb surfaced in the participant popout. It can be AI-written: a **gear-icon source picker** (in the card editor and the in-chat popout) chooses which inputs feed the draft via **`aboutMeSources`** — any of `description` / `personality` / `scenario` / `backstory` / `appearance`, the `convoBehavior` directive, linked `lorebook` entries (all, or a specific `lorebookEntryIds` subset), and recent `chatContext` (with a `chatContextLimit`). Default is **personality only** (`DEFAULT_ABOUT_ME_SOURCES = { personality: true }`).
+- **Per-chat about-me override** — separate from the card default. In Conversation mode, click a participant's avatar to set/edit/clear a **chat-specific** about-me that supersedes the card default in that one conversation (Discord per-server-profile style; pairs with the `update_about_me` tool's `chat` scope).
+- **`convoBehavior`** — a Conversation-only behavior directive (`instruction` text plus an `insertionStrategy`). Strategies: `constant_before`, `constant_after` (default), `post_history_replace`, `post_history_before`, `post_history_after`, and `macro` (place it yourself with `{{convo_behavior}}`).
+- **`phoneticName`** (top-level column, `phonetic_name`) — a pronunciation spelling used by Conversation Call TTS. Exposed via `{{charNamePhonetic}}` / `{{userNamePhonetic}}`, which fall back to `{{char}}` / `{{user}}` when empty.
+
+### Conversation macros
+
+Conversation mode registers a `Conversation` macro category (`packages/shared/src/utils/macro-engine.ts:284-363`). Profile macros pull the fields above: `{{convo_display}}`, `{{char_about}}`, `{{persona_about}}`, `{{convo_behavior}}`. **Relocation macros** move an auto-inserted block to where you place it (and skip its automatic insertion): `{{context}}` / `{{status}}`, `{{commands}}`, `{{reactRules}}`, `{{replyRules}}`, `{{memories}}`, `{{lorebook}}`.
+
+### Theming the about-me popout
+
+The Card CSS Theming Guide exposes **`mari-about-me-*` hooks** (e.g. `mari-about-me-popout`, `-box`, `-banner`, `-avatar`, `-name`, `-handle`, `-status`, `-badge`, `-text`), so the Conversation about-me popout is themable straight from **Creator Notes** CSS — and personas can now ship their own creator-notes CSS for their popout too.
 
 ## The Professor Mari Pattern
 

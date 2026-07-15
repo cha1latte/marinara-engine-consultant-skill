@@ -124,7 +124,7 @@ The model sees the schema and uses it to generate well-formed arguments. **Descr
 
 ## Built-In Tools (Not Custom, but Same Protocol)
 
-Marinara ships ~17 built-in tools that work the same way (the executor switch in `tool-executor.ts`):
+Marinara ships ~18 built-in tools that work the same way (the executor switch in `tool-executor.ts`):
 - `roll_dice` — parses dice notation like `"2d6+3"` and returns rolls, sum, total.
 - `update_game_state` — GM updates world state in Game Mode.
 - `set_expression` — character changes its sprite.
@@ -134,6 +134,7 @@ Marinara ships ~17 built-in tools that work the same way (the executor switch in
 - `edit_chat_message` — edit an existing chat message.
 - `read_chat_summary`, `append_chat_summary` — read/append the chat's rolling summary.
 - `read_chat_variable`, `write_chat_variable` — per-chat key/value state.
+- `update_about_me` **(v2.2)** — lets the character rewrite its own "about me" profile. **Opt-in and default-off** (the user has to enable it per chat), and **Conversation-mode only** (server-enforced; it's not exposed in Game Mode). Takes `scope` + `content`: `scope: "public"` changes the character's real cross-chat bio that shows in every chat and is **surfaced to the user for approval first**; `scope: "chat"` writes a bio **private to that one conversation** (no approval needed). `content` may be empty to clear it.
 - Spotify/music: `spotify_get_playlists`, `spotify_get_playlist_tracks`, `spotify_search`, `spotify_play`, `spotify_set_volume`, `spotify_get_current_playback`.
 
 Custom tools run through the same executor — they just hit the `default` case in the switch that tries the custom tools list.
@@ -260,6 +261,7 @@ Distinct from custom tools: **Regex Scripts** are SillyTavern-style find/replace
 - **What it does:** each script pairs a regex `find` with a `replace`, applied to prompt and/or output text — the SillyTavern regex model.
 - **Scope:** scripts are scoped **per-character** (Character editor's regex section, `CharacterRegexSection.tsx`) and **per-preset** (Presets panel, `PresetsPanel.tsx`). Backed by a `regexScripts` DB table (`regex-scripts.ts`) with seeded defaults (`seed-regex.ts`); applied on the client via `use-apply-regex.ts`.
 - **SillyTavern-import-compatible:** existing ST regex scripts import over, the same way lorebooks/world-info do.
+- **ReDoS safety validator (relaxed in v2.2):** each `find` pattern is screened for catastrophic-backtracking risk before it's saved/run. As of 2.2 the check is less aggressive — **linear, delimiter-bounded field patterns are now allowed** (e.g. `([^|]+)\|([^|]+)\|([^|]+)` for splitting pipe-delimited fields), which previously got flagged. **Overlapping broad-unbounded chains** (the actual catastrophic-backtracking shapes, e.g. stacked `.*`/`.+` with overlapping character classes) are still **rejected**. If a script is refused, rewrite it with bounded classes rather than greedy wildcards.
 - **Source of truth:** `docs/REGEX_SCRIPTS.md`.
 
 (Regex Scripts were added in an intermediate 2.0.x update and documented in the 2.1 doc refresh — an established surface, not brand-new in 2.1.)

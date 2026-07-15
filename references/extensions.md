@@ -69,6 +69,13 @@ await marinara.apiFetch("/characters", {
 
 **Note:** `Content-Type: application/json` is set by default.
 
+**Message-scoped Game state (v2.2):** for Game Mode extensions, `GET /chats/:chatId/messages/:messageId/game-state?swipeIndex=N` returns the exact stored world-state snapshot (date/time/location/weather, present characters, player/persona stats, tracker fields, etc.) for a *specific* message and swipe — it does **not** fall back to the latest state. Omit `swipeIndex` to use that message's active swipe; a message/swipe with no stored snapshot returns `null`. Use it to read the world as it stood at a chosen point in the log (the chat-level `GET /chats/:id/game-state` still returns the latest visible state).
+
+```javascript
+const snap = await marinara.apiFetch(`/chats/${chatId}/messages/${messageId}/game-state?swipeIndex=0`);
+if (snap) console.log(snap.location, snap.time, snap.presentCharacters);
+```
+
 **Denylist:** `apiFetch` blocks `/extensions`, `/extensions/*`, `/admin`, and `/admin/*` (checked against the canonical URL pathname, so encoded traversal like `%2e%2e/admin` is also caught). An extension can't re-install/modify extensions or reach privileged admin routes through it.
 
 ### `marinara.on(target, event, handler)`
@@ -104,6 +111,23 @@ Manually register a cleanup function to run when the extension is disabled/unloa
 const ws = new WebSocket("wss://example.com/feed");
 marinara.onCleanup(() => ws.close());
 ```
+
+### `marinara.storage` — server-backed, cross-device extension storage **(v2.2)**
+Each extension gets its own **server-persisted** key/value bag, scoped to the extension ID. Unlike `localStorage`, it's stored in the app DB (`extension-storage:<id>` in app settings), validated on write, and **syncs across devices/sessions**. Three async methods, each resolving to `{ value: <the-whole-bag> }`:
+
+- `marinara.storage.get()` — read the current bag.
+- `marinara.storage.patch(obj)` — shallow-merge `obj` into the stored bag and return the merged result.
+- `marinara.storage.delete()` — clear the bag.
+
+```javascript
+// Persist a per-extension setting that follows the user across devices
+await marinara.storage.patch({ theme: "warm", lastSeen: Date.now() });
+
+const { value } = await marinara.storage.get();
+console.log(value.theme); // "warm"
+```
+
+The value must be a JSON object and is **size-limited to 1 MB** (1,000,000 UTF-8 bytes) — a patch that would exceed the cap is rejected by the schema. Use it for extension config/state that should be durable and shared, not one-off view state (transient UI state can still stay in `localStorage`).
 
 ## Writing an Extension
 
@@ -187,7 +211,7 @@ buildFavoritesBar();
 ## Installation and Distribution
 
 There's no central marketplace yet. Distribution is manual — a JSON payload or pasted CSS/JS — and v2.0 adds **folder/zip import/export**: extensions export as a zip with a `marinara-extensions.json` envelope (`kind: "marinara.extension-folder"`) plus per-extension `manifest.json` + `extension.css`/`extension.js`, so a multi-file extension travels as one package (`packages/client/src/lib/extension-transfer.ts`).
-- In **Settings → Extensions**, users add the extension with its CSS/JS content.
+- In **Settings → Addons → Extensions**, users add the extension with its CSS/JS content. (As of 2.1.1 the Settings panel merged Themes and Extensions into a single **Addons** tab — the old standalone "Extensions" tab is gone.)
 - Extensions can be enabled/disabled individually.
 - They're **persisted server-side** (`/api/extensions`) and sync across sessions; any legacy localStorage entries are migrated once on load.
 
@@ -214,7 +238,8 @@ JS that adds a fixed-position panel showing internal state (token counts, active
 - **Install new chat modes** — hardcoded.
 - **Hook into message streaming tokens** — you see finished chunks but can't intercept mid-stream.
 - **Access the user's API keys** — encrypted at rest, never exposed to client JS.
-- **Persist custom data in a structured way** — use localStorage, but it's not integrated with the DB.
+
+(Persisting structured custom data is no longer a limitation — as of v2.2 use the server-backed `marinara.storage` API above; it's validated, size-limited, and syncs across devices.)
 
 If you need any of these, **fork the engine**.
 
@@ -233,7 +258,7 @@ Don't observe `document.body` with `{ childList: true, subtree: true }` if you o
 Some extensions may conflict with the app's Content Security Policy. If something works in DevTools but fails when installed as an extension, it's likely CSP.
 
 ### Hot-reload during dev
-If you're editing an extension and it gets stuck, disable and re-enable it in Settings → Extensions to force a reload.
+If you're editing an extension and it gets stuck, disable and re-enable it in Settings → Addons → Extensions to force a reload.
 
 ## When to Use Extensions vs. Other Surfaces
 

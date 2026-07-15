@@ -66,7 +66,7 @@ Read the relevant reference file before giving architectural advice in that area
 | Lorebooks, keyword triggers, RAG, per-character vs global scope, entry fields, recursion, grouping | `references/lorebooks.md` |
 | Tool calling, function calling, letting a character "do things," webhooks, scripts, integrating external APIs or databases | `references/custom-tools.md` |
 | Client-side modifications, DOM injection, custom CSS, adding UI elements, browser extensions | `references/extensions.md` |
-| Agents — the 21 built-ins, custom agents, phases (pre-gen / parallel / post-proc), overriding agent prompts | `references/agents.md` |
+| Agents — the 22 built-ins, custom agents, phases (pre-gen / parallel / post-proc), overriding agent prompts | `references/agents.md` |
 | High-level overview, how pieces fit together, chat modes, connections, presets | `references/architecture.md` |
 | Conversation audio/video **calls**, character **video presence**, **Sprites → Clips**, **video generation** (scene videos, animated expressions, call clips) | `references/architecture.md` + `references/character-cards.md` |
 | Prompt/output **regex scripts** (SillyTavern-style find/replace), Home Assistant integration | `references/custom-tools.md` |
@@ -80,7 +80,7 @@ If the question spans multiple areas (common), read all relevant files before an
 
 The user wants to build something they'll keep on their own install or distribute themselves — character, lorebook, custom tool, agent, **extension, theme, custom CSS/JS**. **No PR is involved.** None of the contributor-mode rules apply here. Output style: **multiple architecture options with tradeoffs, then a recommendation.**
 
-> **In-app shortcut (v2.0):** for characters, personas, and lorebooks, the user can also ask **Professor Mari** — Marinara's Home-screen assistant — to scaffold them from a plain-language description (she creates cards/personas/lorebooks, optionally with starter entries, and can navigate panels). For simple builds, "ask Mari" often beats hand-authoring JSON; reach for manual authoring when they need precise control or fields Mari doesn't set. The old standalone character/persona/lorebook *maker* modals were **removed in v2.0** — don't tell users to open them.
+> **In-app shortcut (v2.0):** for characters, personas, and lorebooks, the user can also ask **Professor Mari** — Marinara's Home-screen assistant — to scaffold them from a plain-language description (she creates cards/personas/lorebooks, optionally with starter entries, and can navigate panels). For simple builds, "ask Mari" often beats hand-authoring JSON; reach for manual authoring when they need precise control or fields Mari doesn't set. The old standalone character/persona/lorebook *maker* modals were **removed in v2.0** — don't tell users to open them. As of 2.2, Home Mari (and legacy Mari chats) also surface **color-coded suggestion chips / guided-creation quick replies** — step-by-step creation, editing, and contextual next-action follow-ups — so the user can drive a build by tapping chips rather than typing every prompt.
 
 ### 1. Restate the goal (one sentence)
 Show you understood. If you're unsure about a key detail, ask ONE clarifying question before drafting options — but only if the ambiguity would genuinely change your recommendation. Don't stall.
@@ -136,7 +136,7 @@ Users often want to do things the wrong way. Be willing to redirect:
 
 ### Calibration notes (ideation)
 
-- **Scale your confidence to the task.** For general architecture questions, your bundled references are solid. For specific field names, schema details, or "does feature X exist in 2.1 yet?" — fetch the repo.
+- **Scale your confidence to the task.** For general architecture questions, your bundled references are solid. For specific field names, schema details, or "does feature X exist in 2.2 yet?" — fetch the repo.
 - **The underlying LLM does a lot of work.** A character on GPT-5 or Claude Opus with a minimal card will outperform a heavily-prompted character on a weak local model. When advising, ask/confirm what model they're running.
 - **"Multiple agents stacked" ≠ "smarter character."** Each agent adds latency and tokens. Recommend the minimum viable agent set, and scope each agent to one focused job.
 - **Lorebooks have a token budget.** Don't recommend 200-entry lorebooks without also recommending the user tune `tokenBudget`, use groups to deduplicate, and enable `recursiveScanning` only when it actually helps.
@@ -170,7 +170,7 @@ Sometimes they'll ask general questions ("how does X work", "what's the differen
 
 ### Honesty about the engine's limits
 
-Marinara Engine is an actively-developed indie project, on its 2.1 stable line. Some things it doesn't have (as of the last reference update):
+Marinara Engine is an actively-developed indie project, on its 2.2 stable line. Some things it doesn't have (as of the last reference update):
 - No native vector DB beyond lorebook embeddings (all-MiniLM-L6-v2 is built in for message RAG, but you can't plug in Pinecone/Weaviate without writing extensions).
 - Script tools can't access the network.
 - No plugin marketplace yet — extensions are distributed as CSS/JS files the user installs manually.
@@ -452,4 +452,4 @@ Never tag or publish without `pnpm version:check` passing first. Never commit bu
 
 ### When you don't know
 
-If the user asks something specific to current engine state ("does 2.1.x have feature X yet?", "what fields does CharacterData have on the latest `staging`?", "is this PR going to conflict with the new generate-route refactor?"), fetch from the repo before answering. The bundled references are a snapshot.
+If the user asks something specific to current engine state ("does 2.2.x have feature X yet?", "what fields does CharacterData have on the latest `staging`?", "is this PR going to conflict with the new generate-route refactor?"), fetch from the repo before answering. The bundled references are a snapshot.
