@@ -58,7 +58,7 @@ From `createLorebookEntrySchema`:
 | `group` | string | `""` | Group name. Entries in same group compete by weighted lottery. |
 | `groupWeight` | number | `null` | Weight for intra-group competition. |
 | `preventRecursion` | bool | `false` | Don't trigger further entries from this one's content. |
-| `locked` | bool | `false` | Protect from agent edits (e.g., Lorebook Keeper). |
+| `locked` | bool | `false` | Protect from agent edits (e.g., Lorebook Keeper — a downloadable Misc agent package as of v2.3, absent on fresh installs). |
 | `tag` | string | `""` | Freeform category tag. |
 | `relationships` | object | `{}` | Cross-entry references (for graph-style lore). |
 | `dynamicState` | object | `{}` | Per-chat mutable state. |
@@ -175,7 +175,7 @@ A `superRefine` enforces that a global lorebook (`isGlobal: true`) **cannot also
 - Persona-specific knowledge (about the user's role) → persona-scoped.
 - Current scene state, one-session plot flags → chat-scoped.
 
-**(v2.2)** Lorebooks can also activate inside **Noodle** timeline refreshes via an opt-in "Lorebook context" setting (off by default), reusing the group-chat multi-character lorebook system with a Noodle-specific token budget that scales with active character count — see `references/architecture.md` → Noodle.
+**(v2.2)** Lorebooks can also activate inside **Noodle** timeline refreshes via an opt-in "Lorebook context" setting (off by default), reusing the group-chat multi-character lorebook system — see `references/architecture.md` → Noodle. **(v2.3)** The roster-scaling budget was replaced: world/lore context and chat carryover each get a fixed **8,192-token** budget, and linked-lorebook macros resolve before Noodle refresh prompts (#3687).
 
 ## Token Budget Management
 
@@ -205,13 +205,19 @@ If `recursiveScanning` is true, the content of activated entries is itself scann
 
 Three related v2.0 surfaces handle "the user mentioned a concept without the exact keyword":
 
-- **Knowledge Retrieval** (`knowledge-retrieval` built-in agent, pre-generation) — embedding-based semantic search (local `all-MiniLM-L6-v2` embeddings) over selected lorebooks **and uploaded knowledge-source files**; injects the relevant matches. Complementary to keyword matching.
-- **Knowledge Router** (`knowledge-router` built-in agent, pre-generation) — a lower-cost alternative that **selects relevant lorebook entries by ID** and injects them directly, rather than doing full embedding search.
+> **Changed in v2.3:** Knowledge Retrieval and Knowledge Router are no longer built-ins — they're **downloadable Writer Agent packages** (ids `knowledge-retrieval` / `knowledge-router`) in the official Marinara-Agents catalog. Fresh installs ship **no** optional agents, so semantic lorebook retrieval requires installing the package via Agents → Download Agents; upgrades from ≤2.2 migrate automatically.
+
+- **Knowledge Retrieval** (`knowledge-retrieval` Writer Agent package, pre-generation) — embedding-based semantic search (local `all-MiniLM-L6-v2` embeddings) over selected lorebooks **and uploaded knowledge-source files**; injects the relevant matches. Complementary to keyword matching.
+- **Knowledge Router** (`knowledge-router` Writer Agent package, pre-generation) — a lower-cost alternative that **selects relevant lorebook entries by ID** and injects them directly, rather than doing full embedding search.
 - **Knowledge Sources** (`/api/knowledge-sources`) — upload text files / PDFs that the Knowledge Retrieval agent can scan alongside lorebooks.
 
 **Embeddings:** entries are embedded via a configured **embedding connection** (e.g. the Local Model sidecar's `/api/sidecar/v1/embeddings`); per-entry `excludeFromVectorization` (and the lorebook-level "No Vector") opt entries out. Embedding isn't purely automatic — it depends on having an embedding source configured.
 
 **(v2.2) Vector search as keyword-miss fallback.** Semantic/vector similarity now also acts as a fallback for **ordinary keyed entries**: when an entry's keyword matching misses, vector similarity can still activate it, subject to the same score thresholds, max-results cap, filters, and probability gates. Previously this semantic path was unreachable for keyed entries.
+
+**(v2.3) Baseline-calibrated similarity scores.** Similarity scores are calibrated against an unrelated-text baseline before threshold comparison, so embedding models whose raw cosine scores cluster high (~0.97) now work at normal thresholds — no more hand-tuned extreme thresholds (#3627).
+
+**(v2.3) Macros resolve before matching.** Prompt macros like `{{user}}`/`{{char}}` are resolved *before* lorebook keyword routing and embedding scans (#3704, 2.3.2) — matching operates on macro-resolved text, so entry keys should target real character/persona names, never macro literals.
 
 ## Activation Conditions (Game-State Gating)
 
@@ -248,23 +254,27 @@ For time-based gating:
 
 **When to use:** to bootstrap a lorebook from a summary of a setting/world/topic. Don't expect the output to be final — treat it as a draft to edit.
 
+**(v2.3)** Mari's lorebook creation saves generated entries **atomically** — all-or-nothing — and blank lorebook-generation turns were fixed (#3674).
+
 ## Best Practices
 
 ### Keyword choice
 - Include variations: full names, first names, nicknames, titles.
 - For common words, turn on `matchWholeWords` to avoid false positives.
 - For proper nouns with unusual capitalization, consider `caseSensitive`.
+- **(v2.3)** Use real character/persona names as keys, not macro literals like `{{user}}` — macros are resolved before keyword routing and embedding scans (#3704), so matching only ever sees the resolved names.
 
 ### Entry length
 - 1–3 short paragraphs is ideal. Entries over ~300 words tend to dominate context.
 - If an entity has a lot of lore, split into multiple entries with overlapping keywords (general info + specific deep-dives).
 - **(v2.1)** This guidance is about *prompt economy*, not a storage limit. The old agent/tool write-path size cap on entry `content` was removed, so large entries written by `save_lorebook_entry` or the **Lorebook Keeper** agent persist intact with no pre-storage truncation. (They still count against a lorebook's `tokenBudget` at injection time — a big entry can be budget-skipped even though it's stored in full.)
+- **(v2.3)** Lorebook Keeper is now a **downloadable Misc agent package** (`lorebook-keeper`) from the official catalog — absent on fresh installs, and its Game-setup controls appear only when installed.
 
 ### When NOT to use lorebooks
 - **Small stable knowledge** — just put it in the character card.
 - **Data that's always relevant** — put it in the card, skip the keyword machinery.
 - **Fast-changing data** — lorebooks are for stable knowledge. Use webhook tools for live data.
-- **Knowledge that's too big for any prompt** — at some point you need actual RAG. Marinara has `knowledge-retrieval` for semantic matching over lorebook entries; past that, you'd need a webhook to an external vector DB.
+- **Knowledge that's too big for any prompt** — at some point you need actual RAG. Marinara has `knowledge-retrieval` for semantic matching over lorebook entries (a downloadable Writer Agent package as of v2.3 — install it first); past that, you'd need a webhook to an external vector DB.
 
 ### When to use multiple lorebooks
 - Separating world lore (global) from character-specific memories (character-scoped).
@@ -293,8 +303,10 @@ Marinara imports SillyTavern lorebooks/world-info directly via Settings → Impo
 - **Lorebooks panel** (right sidebar) — create, edit, attach to characters/chats.
 - **World Info Inspector** — live view of which entries are active in the current chat, with token usage and keyword reasons.
 
-### Editor conveniences (v2.2 / 2.1.1)
+### Editor conveniences (v2.3 / v2.2 / 2.1.1)
 
 - **Batch editing** — select many entries (up to thousands) and apply one boolean setting — recursion, case sensitivity, whole-word matching, vector exclusion, or `enabled` — to all of them in a single atomic update. Good for flipping a lorebook-wide toggle without touching entries one by one.
 - **Sort by entry status** — the editor can sort entries by their entry status (2.1.1).
-- **Character Lorebook tab** — **Edit Linked Lorebook** was renamed **Edit Embedded Lorebook** (2.1.1). A **Remove from card** action unlinks/clears an embedded lorebook — it works even for cards with no separate linked copy. (Row delete only unlinks the standalone; the embedded copy stays until you Remove from card.)
+- **Undo/redo & Tab indent (v2.3)** — native undo/redo works again in the Content and Description fields, and Tab / Shift+Tab indents/unindents every selected line without replacing the selection (2.3.2).
+- **Lorebook Prompt Position (v2.3)** — the shared lorebook editor shell has a lorebook-level **Prompt Position** selector governing where the lorebook's content is placed in the prompt, distinct from the per-entry `position` field.
+- **Character Lorebook tab** — **Edit Linked Lorebook** was renamed **Edit Embedded Lorebook** (2.1.1). A **Remove from card** action unlinks/clears an embedded lorebook — it works even for cards with no separate linked copy. (Row delete only unlinks the standalone; the embedded copy stays until you Remove from card.) **(v2.3)** File-native storage enforces primary/natural-key constraints, preventing ambiguous duplicate lorebook links.

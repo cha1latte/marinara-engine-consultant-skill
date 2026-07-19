@@ -2,9 +2,9 @@
 
 Agents are **autonomous LLM sub-systems that run during message generation**. They handle side tasks like state tracking, prose quality enforcement, continuity checking, image generation, and music control — running before, alongside, or after the main response.
 
-All agents are **disabled by default**. Users enable only what they need. Each enabled agent adds latency and token cost per turn, so the right recommendation is usually the minimum viable set.
+*(v2.3)* Official agents are **downloadable packages, not built-ins** — a fresh install ships **zero optional agents**. The model is two-step: **install** a package from Agents → Download Agents, then **enable** it per chat. Each enabled agent adds latency and token cost per turn, so the right recommendation is usually the minimum viable set — and any recommendation that relies on an official agent must include the install step.
 
-**Source of truth:** `packages/server/src/services/agents/` (agent-executor.ts, agent-pipeline.ts, knowledge-retrieval.ts), `packages/shared/src/schemas/agent.schema.ts`, `packages/shared/src/constants/agent-prompts.ts` (default prompt templates for built-ins).
+**Source of truth:** Engine runtime — `packages/server/src/services/agents/` (agent-executor.ts, agent-pipeline.ts), `packages/shared/src/schemas/agent.schema.ts`, `packages/shared/src/constants/agent-prompts.ts` (default prompt templates for official agents). *(v2.3)* Packaged-agent feature code lives in **`Pasta-Devs/Marinara-Agents`** (`packages/<id>/`); upstream reference doc: `docs/agents/built-in-agents.md`. In `packages/shared/src/features/agents/agent-registry.generated.ts`, `BUILT_IN_AGENT_MANIFESTS` is now an **empty array** — do not count it; `BUILT_IN_AGENT_IDS` (`packages/shared/src/types/agent.ts`) survives only as legacy/compatibility ids (21 entries). `BuiltInAgentMeta` gained `category` (`'writer' | 'tracker' | 'misc'`) and `execution` (`'pipeline' | 'feature'`) fields.
 
 ## Agent Phases
 
@@ -48,41 +48,80 @@ Runs **after** the main model finishes. Receives the generated message and can e
 
 **Cost:** Adds latency after generation finishes but before results fully settle.
 
-## Built-In Agents
+## Downloadable Agents (v2.3)
 
-There are **22 built-in agents** (registry: `packages/shared/src/features/agents/agent-registry.generated.ts` — count `BUILT_IN_AGENT_MANIFESTS`; canonical ids in `BUILT_IN_AGENT_IDS`, `packages/shared/src/types/agent.ts`). Listed by phase, with the `id` you reference in config and the display name.
+v2.3.0 moved every optional agent out of the base Engine into **downloadable capability packages** (25,000+ lines of agent/map/call/table-game code removed from the Engine). Fresh installs contain **no** optional agents; existing installs migrate selections, settings, and history automatically.
 
-> **Retired — don't reference these:** `prompt-reviewer`, `response-orchestrator`, `schedule-planner`, `chat-summary`, `autonomous-messenger`, `youtube`, `secret-plot-driver` are in `RETIRED_BUILT_IN_AGENT_IDS` and are no longer built-ins. (Chat summary survives only as a prompt constant, not an agent.)
+### The Download Agents library
+
+**Agents → Download Agents** is a full-page library for official packages: install, read about, update, and uninstall each one. Packages are grouped **installed / uninstalled**, ordered **Writer, Tracker, Misc**, with creator artwork (star fallback when art is missing). **Install All / Uninstall All** run through a safe sequential queue. *(2.3.2)* Each package shows **Conversation / Roleplay / Game compatibility badges**, and the catalog is searchable by mode (#3676).
+
+### Package catalog
+
+First-party packages are published in **github.com/Pasta-Devs/Marinara-Agents** as individually verified packages — **29 packages**: 6 Writer, 8 Tracker, 15 Misc (full list below). Trust model: schema validation, SHA-256 checksums, per-file hash/size checks, atomic install, and offline availability once installed. Professor Mari's prompts carry the canonical 29-package summary, so she can compare and recommend packages in-app. Upstream reference doc: `docs/agents/built-in-agents.md` in the Engine repo.
+
+*(2.3.3)* Each Engine major installs/updates only from its matching **catalog lane** — `catalog/v2/catalog.json` for Engine 2, `catalog/v3/` for Engine 3, with `catalog/catalog.json` as a legacy v2 alias (#3712).
+
+### Package lifecycle
+
+- *(2.3.1)* Installed packages check the catalog at **server startup** and auto-upgrade to the newest compatible version before their runtimes activate. Offline, incompatible, missing, or failed updates keep the previous version; a verified runtime failure rolls back automatically.
+- *(2.3.2)* Catalog HTTP failures report real status, and installed agents keep working offline (#3706/#3707).
+- *(2.3.3)* Incompatible package versions are **quarantined** before their hooks can crash generation (#3647).
+
+### Enable Agents master toggle
+
+Each chat has an **Enable Agents** master switch gating all agent initialization and model calls: with it off, no selected agent — including package services — initializes or calls a model. The setting survives the v2.3 capability migration without needing to be re-enabled (#3669). *(2.3.3)* Hierarchical Maps fully obeys it (UI, prompt generation, lorebook previews, retries, tracker patches, carryover, checkpoints).
+
+### Capability API (packages)
+
+*(2.3.2)* Packages run against **capability API 1.3** (#3690), whose host services cover safe model routing, persistence, history/checkpoints, resources, logging, transactions, client contribution loading, and visible readiness/retry states. The base Engine keeps validated capability registries and compatibility bridges; capability-owned tables resolve via registered schema names (#3647). Relevant if you're authoring or debugging a package rather than a plain custom agent.
+
+### Upgrading to v2.3
+
+Upgrades from ≤2.2 migrate agents and chat feature selections without losing settings, data, or history; the migration is restart-safe and idempotent (#3670). Known bug: the 2.3.2 migration auto-selected Hierarchical Maps everywhere — 2.3.3 ships a one-time correction (#3723).
+
+## Official Downloadable Agents
+
+These were the "built-in agents" through v2.2; *(v2.3)* they are now the **29-package official catalog** described above. None are present on a fresh install — install from Download Agents first, then enable per chat. Pipeline packages are listed by phase, with the `id` you reference in config, the display name, and the catalog category (**Writer / Tracker / Misc**); feature packages (package-owned runtimes, `execution: "feature"`) follow in their own subsection.
+
+> **Retired — don't reference these:** `prompt-reviewer`, `response-orchestrator`, `schedule-planner`, `chat-summary`, `autonomous-messenger`, `youtube`, `secret-plot-driver`, and *(v2.3)* `about-me-keeper` are in `RETIRED_BUILT_IN_AGENT_IDS` and are neither built-ins nor packages. (Chat summary survives only as a prompt constant, not an agent. Conversation's **About Me** profile and the `update_about_me` tool remain built into the Engine — they are **not** downloadable agents — and as of 2.3.2 About Me drafting goes through Professor Mari.)
 
 ### Pre-generation
-- **`director`** (Narrative Director) — pacing directives, dramatic beats, scene transitions.
-- **`knowledge-retrieval`** (Knowledge Retrieval) — embedding-based semantic search across lorebook entries / knowledge sources; closest thing to traditional RAG.
-- **`knowledge-router`** (Knowledge Router) — lower-cost RAG alternative: selects relevant lorebook entries by ID and injects them directly.
-- **`html`** (Immersive HTML) — formats messages with custom HTML/CSS. `runtimeDisabled`: it injects formatting into the last user prompt rather than running as a separate agent call.
+- **`director`** (Narrative Director — Writer) — pacing directives, dramatic beats, scene transitions.
+- **`knowledge-retrieval`** (Knowledge Retrieval — Writer) — embedding-based semantic search across lorebook entries / knowledge sources; closest thing to traditional RAG.
+- **`knowledge-router`** (Knowledge Router — Writer) — lower-cost RAG alternative: selects relevant lorebook entries by ID and injects them directly.
+- **`html`** (Immersive HTML — Misc) — formats messages with custom HTML/CSS. `runtimeDisabled`: it injects formatting into the last user prompt rather than running as a separate agent call.
 
 ### Parallel
-- **`echo-chamber`** (Echo Chamber) — absent characters / sidebar reactions to the current scene. *(v2.1)* Fires only on fresh user messages; it does **not** trigger on `/continue` continuation rewrites.
-- **`combat`** (Combat) — turn-based combat mechanics computed alongside narration.
+- **`echo-chamber`** (Echo Chamber — Misc) — absent characters / sidebar reactions to the current scene. *(v2.1)* Fires only on fresh user messages; it does **not** trigger on `/continue` continuation rewrites.
+- **`combat`** (Combat — Misc) — turn-based combat mechanics computed alongside narration.
 
 ### Post-processing
-- **`prose-guardian`** (Prose Guardian) — repetition analysis, rhetorical-device selection, sentence variety, sensory rotation. *Defaults to post_processing (phase overridable — see below).*
-- **`continuity`** (Continuity Checker) — flags/repairs contradictions with established lore. *Defaults to post_processing (phase overridable — see below).*
-- **`world-state`** (World State) — tracks date/time, weather, location, and present characters. *(v2.2)* No longer a fixed built-in field set: users can add **custom fields** and toggle **per-field hide** controls, with inline editing and lock-aware persistence, surfaced in both the Tracker Panel and Roleplay HUD (#3518).
-- **`character-tracker`** (Character Tracker) — present characters, moods, relationships, appearance/outfit, stats. *(v2.2)* Also supports user-defined **custom fields** and per-field hide/lock like World State. Stat values may be **structured objects** — `{ name, value, max, color }` (e.g. HP/MP bars), normalized by `rpg-stats` — not just plain numbers/strings; the Present Characters tracker now renders these safely instead of crashing (#3563).
-- **`custom-tracker`** (Custom Tracker) — user-defined tracking (any JSON state).
-- **`persona-stats`** (Persona Stats) — updates player/character RPG stats. Stat pools use the structured `{ name, value, max, color }` shape (see Character Tracker).
-- **`quest`** (Quest Tracker) — quest objectives, completion, rewards.
-- **`expression`** (Expression Engine) — picks character sprite expressions from emotional content. *(v2.1)* Expression portrait sprites can also be produced as short **video** clips via a Video Generation connection and converted to looping GIFs, then saved into expression slots (Advanced > Video Generation sets duration/prompt; `animatedExpressionClipDurationSeconds` default 3s). See character-cards.md / architecture.md for the media path.
-- **`background`** (Background) — picks/generates the scene background image. *(v2.1)* In Game Mode, a manually selected chat background now overrides automatic GM scene-background selection until the user removes it (mirrors the tracker field-lock "manual pin wins" pattern).
-- **`illustrator`** (Illustrator) — generates scene illustrations via an image provider (default `runInterval: 5`). *(v2.2)* The default Illustrator prompt rules were updated to carry available character **build, clothing/outfit, and appearance** details into the generated image prompt instead of leaving the image model to infer them. *(v2.1)* Distinct from the optional **Game Illustrator** "Dynamic LLM Prompt Generation" toggle (per-chat `gameImageDynamicPromptEnabled`; UI: Chat Settings > Agents > Illustrator), which asks the chat/prompt LLM to rewrite Game Mode NPC-portrait, location-background, and key-moment illustration prompts before image gen. GM-created NPC profile descriptions are rebuilt from current game state at asset-send time and sent as required canonical visual guidance for portrait prompts (preserved when generated avatars are written back to NPC metadata).
-- **`lorebook-keeper`** (Lorebook Keeper) — auto-writes lorebook entries from the ongoing story.
-- **`card-evolution-auditor`** (Card Evolution Auditor) — proposes character-card edits for user approval.
-- **`spotify`** (Music DJ) — suggests/controls music for the scene; supports both Spotify and YouTube via the `musicProvider` setting.
-- **`cyoa`** (CYOA Choices) — generates in-character choices after a response.
-- **`haptic`** (Haptic Feedback) — drives haptic devices via Intiface Central running locally.
-- **`about-me-keeper`** (About Me Keeper) — *(v2.2, 22nd built-in)* keeps a character's "about me" current on a cadence (`runInterval` default 8), updating either the public card profile via the existing approval flow or a private, chat-scoped override. **Conversation-only and opt-in** (off by default; in `CONVERSATION_ALLOWED_AGENT_IDS`, `resultType: about_me_update`) and **hidden from the Roleplay agents library** (`libraryHidden`) — it won't appear in the manually addable list outside Conversation mode.
+- **`prose-guardian`** (Prose Guardian — Writer) — repetition analysis, rhetorical-device selection, sentence variety, sensory rotation. *Defaults to post_processing (phase overridable — see below).*
+- **`continuity`** (Continuity Checker — Writer) — flags/repairs contradictions with established lore. *Defaults to post_processing (phase overridable — see below).*
+- **`world-state`** (World State — Tracker) — tracks date/time, weather, location, and present characters. *(v2.2)* No longer a fixed built-in field set: users can add **custom fields** and toggle **per-field hide** controls, with inline editing and lock-aware persistence, surfaced in both the Tracker Panel and Roleplay HUD (#3518).
+- **`character-tracker`** (Character Tracker — Tracker) — present characters, moods, relationships, appearance/outfit, stats. *(v2.2)* Also supports user-defined **custom fields** and per-field hide/lock like World State. Stat values may be **structured objects** — `{ name, value, max, color }` (e.g. HP/MP bars), normalized by `rpg-stats` — not just plain numbers/strings; the Present Characters tracker now renders these safely instead of crashing (#3563).
+- **`custom-tracker`** (Custom Tracker — Tracker) — user-defined tracking (any JSON state).
+- **`persona-stats`** (Persona Stats — Tracker) — updates player/character RPG stats. Stat pools use the structured `{ name, value, max, color }` shape (see Character Tracker).
+- **`quest`** (Quest Tracker — Tracker) — quest objectives, completion, rewards.
+- **`expression`** (Expression Engine — Tracker) — picks character sprite expressions from emotional content. *(v2.1)* Expression portrait sprites can also be produced as short **video** clips via a Video Generation connection and converted to looping GIFs, then saved into expression slots (Advanced > Video Generation sets duration/prompt; `animatedExpressionClipDurationSeconds` default 3s). See character-cards.md / architecture.md for the media path.
+- **`background`** (Background — Tracker) — picks/generates the scene background image. *(v2.1)* In Game Mode, a manually selected chat background now overrides automatic GM scene-background selection until the user removes it (mirrors the tracker field-lock "manual pin wins" pattern).
+- **`illustrator`** (Illustrator — Misc) — generates scene illustrations via an image provider (default `runInterval: 5`). *(v2.3)* Install-gated: until the Illustrator package is installed **and enabled per chat**, `/illustrate` and `/selfie` are hidden, image/video generation settings are hidden, and the Gallery Illustrate/Selfie/Storyboard/Video/Animate/Background actions are unavailable in every mode. Renames: selfie configuration is now **"Illustrator Settings"** (Chat Settings > Agents), the Connections defaults category "Illustrator" is now **"Images"**, and Game setup's "Visual Generation" is now Illustrator. *(v2.2)* The default Illustrator prompt rules were updated to carry available character **build, clothing/outfit, and appearance** details into the generated image prompt instead of leaving the image model to infer them. *(v2.1)* Distinct from the optional **Game Illustrator** "Dynamic LLM Prompt Generation" toggle (per-chat `gameImageDynamicPromptEnabled`; UI: Chat Settings > Agents > Illustrator), which asks the chat/prompt LLM to rewrite Game Mode NPC-portrait, location-background, and key-moment illustration prompts before image gen. GM-created NPC profile descriptions are rebuilt from current game state at asset-send time and sent as required canonical visual guidance for portrait prompts (preserved when generated avatars are written back to NPC metadata).
+- **`lorebook-keeper`** (Lorebook Keeper — Misc) — auto-writes lorebook entries from the ongoing story.
+- **`card-evolution-auditor`** (Card Evolution Auditor — Writer) — proposes character-card edits for user approval.
+- **`spotify`** (Music DJ — Misc) — plays scene-matched music through **Spotify, YouTube, or local Game Assets** (`musicProvider` setting; *(v2.3)* Game Assets is the third source). *(v2.3)* The always-available **Music Player** toggle shows "Download Music DJ Agent to configure" guidance when the package isn't installed.
+- **`cyoa`** (CYOA Choices — Misc) — generates in-character choices after a response.
+- **`haptic`** (Haptic Feedback — Misc) — drives haptic devices via Intiface Central running locally.
 
-Each built-in has a default prompt template in `packages/shared/src/constants/agent-prompts.ts`. **Users can override any template** via the Agent Editor. *(v2.2)* When an overridden template is assembled as XML, **literal contract tags** the agent depends on (e.g. `<chat_summary>`, `<existing_entries>`) are honored verbatim; only values inserted through macros are escaped (#3548) — so a custom template can keep those structural tags intact without them being mangled.
+### Feature packages (not pipeline agents)
+
+These catalog packages ship package-owned server runtimes and surfaces instead of running as a phase in the agent pipeline (`execution: "feature"`):
+
+- **`hierarchical-maps`** (Hierarchical Maps — Tracker) — *(v2.3)* nested world maps for Roleplay and Game; enableable in Roleplay and during/after Game creation. Its controls live nested inside its **Chat Settings > Agents** entry (#3679). *(2.3.3)* Fully obeys the Enable Agents master toggle; incompatible 1.0.x runtimes are quarantined (fixes "t.select is not a function"); a one-time correction removes the 2.3.2 migration's accidental Maps auto-selection (#3723); Maps calls in inactive chats no longer block sends ("Failed to flush 1 game-state patch callback").
+- **`conversation-calls`** (Calls — Misc) — audio/video calls, moved into a package in v2.3.0 and renamed **"Calls"** user-facing in 2.3.2 (#3676; package IDs preserved). **Owns Local Whisper**: Connections shows the Local Speech Model controls only while the package is installed, and uninstalling removes downloaded Whisper models. #3671 fixed Whisper discovery when `DATA_DIR` is unset; package v1.0.4 stopped hardcoded fallback replies and dropped the provider-native JSON mode requirement (#3685).
+- **Six table games** (all Misc) — **`uno`** (UNO), **`chess`** (Chess), **`poker`** (Poker), **`eightball`** (8-Ball Pool), **`tic-tac-toe`** (Tic-Tac-Toe), **`rock-paper-scissors`** (Rock-Paper-Scissors) — Conversation feature packages with package-owned runtimes. They surface as **Commands toggles**, not Add Agent entries (no legacy `activeAgentIds`), and installed games hot-activate their slash commands **without an Engine restart** (2.3.2, #3699); route-bearing packages keep a safe restart path.
+
+Each official pipeline agent has a default prompt template in `packages/shared/src/constants/agent-prompts.ts`. **Users can override any template** via the Agent Editor. *(v2.2)* When an overridden template is assembled as XML, **literal contract tags** the agent depends on (e.g. `<chat_summary>`, `<existing_entries>`) are honored verbatim; only values inserted through macros are escaped (#3548) — so a custom template can keep those structural tags intact without them being mangled.
 
 **Phase overrides on built-ins (v2.1):** editing a built-in agent's phase in the Agent Editor is now honored in storage, normal generation, and manual retries — for Echo Chamber, Prose Guardian, Continuity, Immersive HTML, Expression, and Music DJ — instead of resetting to the built-in default. Agents like Prose Guardian and Continuity still **default** to `post_processing`, but a user's phase override now persists and takes effect. (Earlier docs describing these phases as fixed/force-pinned no longer apply.)
 
@@ -136,7 +175,7 @@ Custom agents have an explicit capability model — `CUSTOM_AGENT_CAPABILITY_IDS
 Post-processing agents can **opt in** to see the current turn's data: `preGenInjections` (what pre-generation agents injected) and `parallelResults` (parallel-phase results). It's off by default — only opted-in agents receive it (`AgentContext.preGenInjections` / `parallelResults`).
 
 ### Game Mode & mode gating
-v2.0 added **Game-Mode custom-agent selection** in Chat Settings (the picker sits at the bottom of the Agents section). Built-ins are also mode-gated via `modeAllowlist` (e.g. `cyoa`/`combat`/`world-state` → roleplay/visual-novel; `director`/`html` → roleplay-only), so not every agent is offered in every mode.
+v2.0 added **Game-Mode custom-agent selection** in Chat Settings (the picker sits at the bottom of the Agents section). *(v2.3)* Selected **custom agents now run in all three modes** — Conversation, Roleplay, and Game — whenever the chat's Enable Agents master toggle is on (#3692). `modeAllowlist`-style per-mode gating applies **only to official packages**, surfaced as the Conversation/Roleplay/Game compatibility badges in Download Agents — so not every official agent is offered in every mode.
 
 **(v2.1)** Game Mode also exposes per-chat **media prompt preset** selectors in Chat Settings > Agents — Illustration Prompt, Animation Prompt, and Game Video Prompt — with read-only built-ins (Still Keyframes, Comic Page, Colored Manga, B&W Manga, Cinematic Scene Video) that users copy into chat-local editable versions. These pair with the Game Illustrator toggle (see the `illustrator` entry above). The full media-preset doc lives in architecture.md.
 
@@ -234,7 +273,7 @@ All under `/api/agents` (`packages/server/src/routes/agents.routes.ts`):
 
 ## UI Location
 
-**Agents Panel** (right sidebar → sparkles icon). Shows built-in agents (with toggles and editable prompt templates) and a Custom Tools subsection. Each agent has a full editor for its prompt, connection override, and settings.
+**Agents Panel** (right sidebar → sparkles icon). *(v2.3)* Lists **installed packages** (catalog artwork, star fallback when art is missing) plus the **Download Agents** entry point, alongside the Custom Tools subsection; uninstalling a package refreshes the open sidebar immediately. Each agent has a full editor for its prompt, connection override, and settings. **Chat Settings > Agents** stays available in all three modes even with nothing installed — empty sections (and the empty setup-wizard Agents step) link to Download Agents, and built-in Conversation commands remain configurable without any downloads.
 
 ### Agent Suite (v2.1)
 Opened from the **Chat Settings drawer's Agents section**, the Agent Suite lists the agents active in the current chat and lets you view and edit everything they have **stored** — agent memory, tracker state (Scene / Present Characters / Active Quests slices), and custom-agent outputs. Edits can be made **manually** or via **AI-assisted rewrites**: select text (or rewrite-all), give an instruction, optionally add grounding via the **Add Context** picker (character cards / active-lorebook entries, max 20 sources / 100k chars), and choose a connection. It reads/writes the existing `/api/agents/memory` and `/runs` endpoints (source: `AgentSuiteModal.tsx`).

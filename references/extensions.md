@@ -210,7 +210,7 @@ buildFavoritesBar();
 
 ## Installation and Distribution
 
-There's no central marketplace yet. Distribution is manual — a JSON payload or pasted CSS/JS — and v2.0 adds **folder/zip import/export**: extensions export as a zip with a `marinara-extensions.json` envelope (`kind: "marinara.extension-folder"`) plus per-extension `manifest.json` + `extension.css`/`extension.js`, so a multi-file extension travels as one package (`packages/client/src/lib/extension-transfer.ts`).
+CSS/JS client extensions have **no marketplace** — distribution is manual, a JSON payload or pasted CSS/JS. **(v2.3)** Don't conflate this with the official **Download Agents** catalog (Agents → Download Agents, backed by `Pasta-Devs/Marinara-Agents`): that catalog distributes verified downloadable **agent capability packages**, which are a different surface entirely — it does **not** distribute client extensions (see `agents.md`). Extensions remain manual installs. v2.0 adds **folder/zip import/export**: extensions export as a zip with a `marinara-extensions.json` envelope (`kind: "marinara.extension-folder"`) plus per-extension `manifest.json` + `extension.css`/`extension.js`, so a multi-file extension travels as one package (`packages/client/src/lib/extension-transfer.ts`).
 - In **Settings → Addons → Extensions**, users add the extension with its CSS/JS content. (As of 2.1.1 the Settings panel merged Themes and Extensions into a single **Addons** tab — the old standalone "Extensions" tab is gone.)
 - Extensions can be enabled/disabled individually.
 - They're **persisted server-side** (`/api/extensions`) and sync across sessions; any legacy localStorage entries are migrated once on load.
@@ -241,7 +241,7 @@ JS that adds a fixed-position panel showing internal state (token counts, active
 
 (Persisting structured custom data is no longer a limitation — as of v2.2 use the server-backed `marinara.storage` API above; it's validated, size-limited, and syncs across devices.)
 
-If you need any of these, **fork the engine**.
+If you need any of these, the reviewed path **(v2.3)** is a downloadable **capability package**: capability API 1.3 (#3690) lets packages ship server runtimes, new commands, and client surfaces, contributed through the reviewed `Pasta-Devs/Marinara-Agents` catalog. **Fork the engine** only for what the capability API can't express.
 
 ## Pitfalls
 
@@ -264,6 +264,7 @@ If you're editing an extension and it gets stuck, disable and re-enable it in Se
 
 **Extension** — client-side UI/UX changes.
 **Custom Agent** — server-side per-turn LLM behavior.
+**Downloadable agent package (v2.3)** — reviewed server runtimes, commands, and client surfaces distributed via the official Download Agents catalog (capability API 1.3) — not the same surface as extensions.
 **Custom Tool** — model-invoked action (client or server).
 **Character card** — how the AI speaks.
 **Lorebook** — what the AI knows.

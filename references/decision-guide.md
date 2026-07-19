@@ -8,8 +8,8 @@ Before architecture, pick the **mode** the experience runs in — this is orthog
 
 - **Conversation** — default one-on-one (or small group) chat. Pick it for an assistant, a companion, or a straightforward back-and-forth.
 - **Roleplay** — immersive narrative RP with a character or cast; the model narrates scenes and drives story. Pick it for story/character immersion.
-- **Game** — GM-driven interactive fiction (Game Mode): the engine runs a game master over narration, storyboards, and scene beats. Pick it for structured, quest-like play.
-- **Noodle (v2.2)** — Marinara's fake social network: invited characters (and optional random users) post, reply, poll, like, repost, and mention each other on a persistent, refreshing timeline; **personas participate directly**, and social memory carries over into Conversation/Roleplay/Game. Pick it for social-feed / timeline personas — a living multi-character social simulation rather than a direct chat. See `references/architecture.md` for the full Noodle section.
+- **Game** — GM-driven interactive fiction (Game Mode): the engine runs a game master over narration, storyboards, and scene beats. Pick it for structured, quest-like play. As of 2.3, setup includes a **Combat Preference** — classic narrative combat or tactical grid battles on a deterministic seeded engine with four difficulty levels — chosen in the setup wizard and changeable later via Chat Settings → Combat Style; game setups also export/import as reusable versioned `.marinara-game-setup.json` bundles that refill the New Game wizard.
+- **Noodle (v2.2)** — Marinara's fake social network: invited characters (and optional random users) post, reply, poll, like, repost, and mention each other on a persistent, refreshing timeline; **personas participate directly**, and social memory carries over into Conversation/Roleplay/Game. Pick it for social-feed / timeline personas — a living multi-character social simulation rather than a direct chat. As of 2.3, the **Noodle Prompt** is user-editable at the top of Noodle Settings (full-screen editor, one-click default restore), Professor Mari is excluded from the timeline by default, and world/lore context and chat carryover each get a fixed 8,192-token budget. See `references/architecture.md` for the full Noodle section.
 
 ## The Nine Questions
 
@@ -56,7 +56,7 @@ Actions = effects in the world. Creating a file, updating a row in your DB, send
 → **Custom tool.** Static for stubs and testing. Webhook for anything that reaches outside the engine (network calls, databases, third-party APIs). Script for pure computation (math, string transforms, date calculations) where no I/O is needed.
 
 **Two common "capabilities" that are NOT hand-built custom tools:**
-- **Generating or animating images/video** is a *native* Marinara capability — attach a Video Generation (or image) connection, don't stand up a webhook. See Q8.
+- **Generating or animating images/video** is a *native* Marinara capability — attach a Video Generation (or image) connection, don't stand up a webhook. As of 2.3 it requires the downloadable **Illustrator** package installed and enabled per chat. See Q8.
 - **Controlling a Home Assistant setup** — Marinara can **auto-generate** the webhook tools for you from your HA entities and re-sync them (needs `WEBHOOK_LOCAL_URLS_ENABLED=true`, since HA is local plain-HTTP). See `references/custom-tools.md`.
 
 **Fits:** "Look up the WordPress config for client X," "create a character based on this description" (this is literally what Mari does), "compute the optimal grow schedule given these inputs."
@@ -70,12 +70,14 @@ See `references/custom-tools.md` for full execution type breakdown.
 ### 5. Does something need to happen **automatically on every turn**?
 Per-turn automation = not user-initiated, not tool-triggered — just runs in the background as part of message generation.
 
+**First, check the official catalog (v2.3).** The 29 official downloadable agent packages (Agents → Download Agents) already cover common per-turn jobs — trackers, continuity checking, card evolution, and more. Recommend installing an official package before designing a custom agent; fresh installs contain no optional agents, so include the install step. Only if nothing in the catalog fits:
+
 → **Custom agent**, placed in the right phase:
 - **`pre_generation`** — runs before the main response. Use for: injecting context, reviewing the prompt, rewriting directives.
 - **`parallel`** — runs alongside the main response. Use for: side tasks that don't block (image generation, music suggestions, reactions from absent characters).
 - **`post_processing`** — runs after the main response. Use for: fact-checking, state extraction, rewriting for style, tracking variables.
 
-Agents cost real tokens and latency every turn. Only use them when the job genuinely needs to happen on every message.
+Agents cost real tokens and latency every turn. Only use them when the job genuinely needs to happen on every message. Custom agents run in all three modes (Conversation, Roleplay, Game) — but only while the chat's **Enable Agents** master toggle is on; if an agent "isn't firing," check that toggle first.
 
 **Fits:** A "tone enforcer" that rewrites every message to stay in-period for a historical RP; a "combat tracker" that extracts damage numbers from narration into structured HP; a "continuity checker" that flags contradictions.
 
@@ -96,7 +98,7 @@ UI = DOM. Buttons, overlays, custom indicators, theme tweaks, new panels, embedd
 
 **Fits:** Adding a word-count indicator below the input, injecting a custom theme, showing a visual token meter, adding a "copy as markdown" button to messages.
 
-**Doesn't fit:** Anything requiring server-side changes (new routes, new DB tables, new agents). Those require forking the engine.
+**Doesn't fit:** Anything requiring server-side changes (new routes, new DB tables, new agents). As of 2.3 the reviewed path for those is a **downloadable capability package** (capability API 1.3) contributed through the Marinara-Agents catalog — forking the engine is only needed for what the capability API can't express.
 
 **Check Settings → Appearance before recommending custom CSS for theming.** v2.0 made much theming native — accent color, RGB/pulse, app background + gradients, chat text colors, font, and "Reset Appearance" — plus a server-synced **custom themes** system (`/api/themes`). Use a CSS extension only for structural/DOM tweaks the native controls can't express. (Professor Mari can also generate themes and extensions for you — see `references/extensions.md`.)
 
@@ -114,16 +116,18 @@ See `references/extensions.md` for the API surface.
 
 ---
 
-### 8. Does the character need to generate or animate images/video? (v2.1)
+### 8. Does the character need to generate or animate images/video? (v2.1; package-gated as of 2.3)
 Media generation = creating a picture or a short video clip — a scene illustration, an animated portrait, an in-call avatar, a storyboard keyframe.
 
-→ **Native media generation — a Video Generation (or image) connection, NOT a webhook.** Video is a first-class capability in 2.1: add a **Video Generation** connection and point the relevant surface at it. There is no need to build a custom tool for this.
+→ **Native media generation — the Illustrator package + a Video Generation (or image) connection, NOT a webhook.** Video is a first-class capability since 2.1, but as of 2.3 all generation surfaces (Gallery actions, `/illustrate`, `/selfie`) require the downloadable **Illustrator** package installed **and** enabled per chat — until then the commands and the image/video generation settings are hidden in every mode, so "install Illustrator from Agents → Download Agents" is step one of any recommendation here. Then add the connection and point the relevant surface at it. There is no need to build a custom tool for this.
+
+Current names (renamed in 2.3): the Connections defaults category is **Images** (was "Illustrator"); selfie configuration lives in **Illustrator Settings** under Chat Settings → Agents; Game setup's "Visual Generation" step is now Illustrator. Venice.ai joined the Image Generation providers in 2.3.2.
 
 The surface depends on where the video should appear:
 - **Gallery "Animate"** — turn a generated image into a short clip.
 - **Game Mode storyboards / scene videos** — animate GM narration keyframes.
 - **Animated expressions** — expression portrait sprites rendered as short clips → looping GIFs.
-- **Conversation-call video presence** — cached avatar clips played in-call.
+- **Calls video presence** — cached avatar clips played in-call. Requires the downloadable **Calls** package (renamed from Conversation Calls in 2.3.2) — this surface doesn't exist unless Calls is installed.
 
 **Fits:** "Can my character generate a video of the scene?", "I want an animated portrait", "make the avatar move during a call."
 

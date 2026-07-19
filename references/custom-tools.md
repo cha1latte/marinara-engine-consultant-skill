@@ -24,6 +24,8 @@ When the tool is enabled and the chat is configured to allow tools, the tool is 
 
 **Local models:** native (OpenAI-compatible) tool calling only fires on the local llama.cpp sidecar when it's launched with `--jinja` — gated by the runtime's native-tool-calls toggle (`enableNativeToolCalls`). Without it, custom tools won't be called on a local model even if defined. Frontier provider models call tools normally.
 
+**Connection Custom Parameters (v2.3):** saved Custom Parameters on a Connection apply to **every** API-backed text generation on that connection — including Noodle and locally hosted custom endpoints — while per-chat/per-call overrides still take precedence. Arbitrary JSON and bare string parameter values are preserved as-is, and unified reasoning-effort requests work again for discovered OpenRouter models (#3688).
+
 ## Execution Types
 
 ### `static` — Hardcoded response
@@ -38,6 +40,8 @@ Returns a fixed string. Useful for:
 
 ### `webhook` — HTTP POST to a URL
 The server POSTs `{ tool: <name>, arguments: <args> }` to `webhookUrl` as JSON, with the configurable custom-tool timeout (**60s by default**, override via `CUSTOM_TOOL_TIMEOUT_MS`). Response body is parsed as JSON if possible, otherwise returned as `{ result: <text> }`, and is capped at **512KB**.
+
+**Related env vars (v2.3):** don't confuse `CUSTOM_TOOL_TIMEOUT_MS` with two knobs added in 2.3.3 (#3730): `CHAT_GENERATION_TIMEOUT_MS` raises the chat-generation timeout for slow Conversation/Roleplay/Game providers, and `AUTO_UPDATE_ENABLED=false` is a persistent launcher auto-update opt-out (Windows/macOS/Linux/Termux) that doesn't disable manual updates.
 
 **The URL must be HTTPS, and local/private targets are blocked by default.** The request goes through an SSRF-hardened `safeFetch`: only `https:` is allowed, and loopback/private/reserved hosts (`localhost`, `127.0.0.1`, `192.168.x.x`, etc.) are rejected unless the server sets `WEBHOOK_LOCAL_URLS_ENABLED=true`. So a `http://localhost:3100` dev backend won't work out of the box — expose it over HTTPS (e.g. a tunnel) or set `WEBHOOK_LOCAL_URLS_ENABLED=true` for local testing.
 
@@ -124,7 +128,7 @@ The model sees the schema and uses it to generate well-formed arguments. **Descr
 
 ## Built-In Tools (Not Custom, but Same Protocol)
 
-Marinara ships ~18 built-in tools that work the same way (the executor switch in `tool-executor.ts`):
+Marinara ships built-in tools that work the same way (the executor switch in `tool-executor.ts`). **(v2.3)** The ~18-tool flat list predates the package split: 2.3.0 slimmed the base Engine, and Maps, Calls, the table games, and music/Spotify tooling now ship as downloadable agent packages — so package-owned tools only exist when their package is installed. The core tools (`roll_dice`, `update_game_state`, the lorebook tools, the chat summary/variable tools, `update_about_me`) remain true Engine built-ins:
 - `roll_dice` — parses dice notation like `"2d6+3"` and returns rolls, sum, total.
 - `update_game_state` — GM updates world state in Game Mode.
 - `set_expression` — character changes its sprite.
@@ -134,10 +138,20 @@ Marinara ships ~18 built-in tools that work the same way (the executor switch in
 - `edit_chat_message` — edit an existing chat message.
 - `read_chat_summary`, `append_chat_summary` — read/append the chat's rolling summary.
 - `read_chat_variable`, `write_chat_variable` — per-chat key/value state.
-- `update_about_me` **(v2.2)** — lets the character rewrite its own "about me" profile. **Opt-in and default-off** (the user has to enable it per chat), and **Conversation-mode only** (server-enforced; it's not exposed in Game Mode). Takes `scope` + `content`: `scope: "public"` changes the character's real cross-chat bio that shows in every chat and is **surfaced to the user for approval first**; `scope: "chat"` writes a bio **private to that one conversation** (no approval needed). `content` may be empty to clear it.
-- Spotify/music: `spotify_get_playlists`, `spotify_get_playlist_tracks`, `spotify_search`, `spotify_play`, `spotify_set_volume`, `spotify_get_current_playback`.
+- `update_about_me` **(v2.2)** — lets the character rewrite its own "about me" profile. **Opt-in and default-off** (the user has to enable it per chat), and **Conversation-mode only** (server-enforced; it's not exposed in Game Mode). Takes `scope` + `content`: `scope: "public"` changes the character's real cross-chat bio that shows in every chat and is **surfaced to the user for approval first**; `scope: "chat"` writes a bio **private to that one conversation** (no approval needed). `content` may be empty to clear it. **(v2.3)** About Me and `update_about_me` stayed built into the Engine through the package split — they are **not** downloadable packages, and the tool's semantics are unchanged; as of 2.3.2, About Me *drafting* goes through Professor Mari instead of per-editor AI Write controls.
+- Spotify/music: `spotify_get_playlists`, `spotify_get_playlist_tracks`, `spotify_search`, `spotify_play`, `spotify_set_volume`, `spotify_get_current_playback`. **(v2.3)** These six are Music DJ-owned — they exist only when the Music DJ agent package is installed, not in the base Engine.
 
 Custom tools run through the same executor — they just hit the `default` case in the switch that tries the custom tools list.
+
+## Custom Tools vs. Built-In Tools vs. Package-Owned Commands (v2.3)
+
+Three distinct things now share the tools/commands space:
+
+- **User-defined custom tools** — the subject of this file. Always available; created in the Agents panel.
+- **Engine built-in tools** — the core list above. Ship with the Engine, no download needed; built-in Conversation commands stay configurable without any downloads.
+- **Package-owned commands** — commands belonging to downloadable agent packages. The six table games surface as **Commands toggles** (no Add Agent entries), and package-owned command toggles appear only for installed agents. Installed Conversation games **hot-activate their slash commands without an Engine restart** (#3699); route-bearing packages keep a safe restart path.
+
+**Slash commands are package-gated:** `/illustrate` and `/selfie` are hidden until the Illustrator package is installed, and the Gallery Illustrate/Selfie/Storyboard/Video/Animate/Background actions require Illustrator installed **and enabled per chat**, in every mode. If a user reports a missing `/illustrate` or `/selfie` command, the fix is to install Illustrator from **Agents → Download Agents**, then enable it for the chat. Selfie prompt generation routes through the per-chat Prompt Model connection (#3638), and the Connections defaults category for image settings is now named **Images**.
 
 ## Best Practices
 
