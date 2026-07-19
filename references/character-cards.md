@@ -52,7 +52,7 @@ Characters in Marinara Engine follow the **V2 Character Card spec** (`chara_card
       insertionStrategy: "constant_before" | "constant_after" | "post_history_replace"
         | "post_history_before" | "post_history_after" | "macro",  // default constant_after
     },
-    aboutMeSources: { ... },        // which fields feed the about-me AI-write (see below)
+    aboutMeSources: { ... },        // legacy (v2.3): former AI-write source picker; no longer surfaced by the editors
     // (the extensions object still allows arbitrary passthrough keys too)
   },
   // phoneticName lives as a top-level character/persona column (not in extensions):
@@ -91,16 +91,16 @@ Not all fields get sent to the model on every turn. Here's roughly what happens:
 **Character** = an AI entity the user chats with.
 **Persona** = the user's own identity in the chat.
 
-They have similar fields but serve opposite roles. If the user asks "how do I give my character a detailed backstory," you're building a character. If they ask "how do I tell the AI about *me*," you're building a persona. The engine substitutes `{{user}}` in prompts with the active persona's name and injects the persona's data into the prompt too.
+They have similar fields but serve opposite roles. If the user asks "how do I give my character a detailed backstory," you're building a character. If they ask "how do I tell the AI about *me*," you're building a persona. The engine substitutes `{{user}}` in prompts with the active persona's name and injects the persona's data into the prompt too. **(v2.3)** Two caveats: a **Roleplay chat created with no Persona stays persona-less end-to-end** (first snapshot, provider prompt, scene generation, combat context) — only Conversation falls back to the globally active Persona. And `{{user}}` / `{{char}}` and other macros in `first_mes`, alternate greetings, and `/guided` instructions now resolve at the **final provider boundary** — including lorebook routing and embedding scans — so raw placeholders can no longer reach the model (#3704).
 
-Both a character's metadata and a persona's now lead with a **Title / comment** field placed directly below **Name** in the primary identity block (synced with the editor-header field) — a short human label for the card, distinct from the model-facing `name`.
+**(v2.3)** Both a character's metadata and a persona's lead their primary identity block with a clearly labeled **avatar upload/replace field** (same upload/crop flow as the editor portrait), above **Name** and the **Title / comment** field (synced with the editor-header field) — a short human label for the card, distinct from the model-facing `name`. **(v2.3)** Personas also gained an **Open Full Library** mirroring the Character Library — card grid, search, sorting, preview pane, paging, scroll restoration, and the editor return flow; both libraries use the Settings chroma text color.
 
 ## Conversation-mode Profile
 
 These fields live on the character/persona `extensions` schema (`character.schema.ts:30-74`) and are **Conversation-mode only** — they're never sent in Roleplay / VN / Game mode. Characters and personas carry the same profile columns, and Professor Mari's `character.create` / `persona.create` (and `mari personas create`) can populate them.
 
 - **`convoDisplayName`** — a live sender label shown above the character's messages, distinct from the card `name`. The **`convoDisplayNameInCard`** toggle additionally declares the display name inside the prompt so the model maps it back to the card — mainly useful in **group Conversations**, where generation instructions, speaker parsing, labels, typing events, and base-name matching all honor it.
-- **`aboutMe`** — a Discord-style "about me" blurb surfaced in the participant popout. It can be AI-written: a **gear-icon source picker** (in the card editor and the in-chat popout) chooses which inputs feed the draft via **`aboutMeSources`** — any of `description` / `personality` / `scenario` / `backstory` / `appearance`, the `convoBehavior` directive, linked `lorebook` entries (all, or a specific `lorebookEntryIds` subset), and recent `chatContext` (with a `chatContextLimit`). Default is **personality only** (`DEFAULT_ABOUT_ME_SOURCES = { personality: true }`).
+- **`aboutMe`** — a Discord-style "about me" blurb surfaced in the participant popout. **(v2.3)** AI drafting now goes through **Professor Mari**: she inspects the saved character/persona, writes the bio in their voice, and saves it to the real `aboutMe` field. The Character and Persona Convo editors no longer expose a separate model connection or source settings for it — the old gear-icon source picker is gone, and **`aboutMeSources`** survives only as a **legacy schema field** the editors don't surface. The field itself is unchanged.
 - **Per-chat about-me override** — separate from the card default. In Conversation mode, click a participant's avatar to set/edit/clear a **chat-specific** about-me that supersedes the card default in that one conversation (Discord per-server-profile style; pairs with the `update_about_me` tool's `chat` scope).
 - **`convoBehavior`** — a Conversation-only behavior directive (`instruction` text plus an `insertionStrategy`). Strategies: `constant_before`, `constant_after` (default), `post_history_replace`, `post_history_before`, `post_history_after`, and `macro` (place it yourself with `{{convo_behavior}}`).
 - **`phoneticName`** (top-level column, `phonetic_name`) — a pronunciation spelling used by Conversation Call TTS. Exposed via `{{charNamePhonetic}}` / `{{userNamePhonetic}}`, which fall back to `{{char}}` / `{{user}}` when empty.
@@ -128,6 +128,8 @@ Mari's `system_prompt` is blank in her card, but the server injects a large `MAR
 
 ### What Mari can actually do (v2.0)
 Her hidden actions are content-creation + navigation helpers, not a generic agent (`docs/PROFESSOR_MARI.md`): create personas, create/update character cards, update personas, create lorebooks (optionally with starter entries), create Conversation/Roleplay chats, navigate to panels/settings tabs, fetch existing items to inspect before advising/editing, and read public Fandom/MediaWiki pages. She is a guide that takes a few *safe* actions — she fetches an item before editing it, and she does **not** run the full Game-Mode setup wizard for you. Beyond the seed-prompt content commands, her Home-screen *workspace agent* can also create/edit **agents, browser extensions, custom tools, and themes** via a `mari` CLI (`mari db` over `agent_configs`/`custom_tools`/`installed_extensions`, `mari themes`), requesting browser approval before database changes.
+
+**(v2.3)** Mari also drafts Conversation **About Me** bios: she inspects the saved character/persona, writes the blurb in their voice, and saves it to the real `aboutMe` field (the per-editor AI Write controls were removed — see the Conversation-mode Profile section). And her card/app-data updates are **field-safe**: partial updates via Mari (or any app-data caller) preserve unrelated fields — greetings, example dialogue, creator notes, system prompts, post-history instructions, character versions, and alternate greetings all survive an update to some other field (#3708); blank Mari generation turns were fixed and lorebook creation made atomic (#3674).
 
 **(v2.1)** Mari's **preset** support is now *structured*: `app_data` `preset.create` / `preset.update` commands can build prompt groups, prompt sections, and preset variables/choice blocks in a **single reversible operation** (#3207). *(Contributor note: `pnpm mari -- --help` at the repo root exposes the built Mari CLI from a source checkout (#3208); its flag parser was fixed so boolean flags like `--tail`/`--raw`/`--patch` no longer swallow positional args (#3222).)*
 
@@ -179,7 +181,7 @@ Characters can be imported from:
 - **SillyTavern** — granular per-type import (v2.0 improved the mappings): `st-character` (+ inspect/batch), `st-lorebook`, `st-preset`, `st-chat`, plus `st-bulk/scan` + `st-bulk/run` for importing a whole folder at once (all under `/api/import/*`). Handles characters, lorebooks, presets, and chat history.
 - **PNG files with embedded metadata** — the V2 spec standard. Drop the PNG into the Characters panel.
 - **JSON files** — raw V2 card JSON.
-- **Chub.ai, CharacterTavern, JannyAI, Pygmalion, Wyvern, DataCat** — all searchable from the in-app Bot Browser.
+- **Chub.ai, CharacterTavern, JannyAI, Pygmalion, Wyvern, DataCat** — all searchable from the in-app **Card Browser**. **(v2.3)** Renamed from *Bot Browser*; the *Browse Online* entry point is now **Download Cards**, and the online browser opens as the **Cards Library** in the shared library shell. Provider fetches (Chub/CharacterTavern/Wyvern) were consolidated behind `safeFetch` (#3617).
 
 Characters can be exported as:
 - JSON (via the export endpoint)
@@ -188,6 +190,8 @@ Characters can be exported as:
 ## Sprite System
 
 Characters can have expression sprites for VN-style overlays in roleplay mode. Sprites live in a folder keyed to the character; filenames are expression names (`happy.png`, `sad.png`, `angry.png`, `smug.png`, etc.). The Expression Engine agent picks the matching sprite per message. There's also an automated sprite generation feature (uses image gen + a pose prompt) introduced in recent versions. **(v2.1)** Expression portraits can additionally be generated as short *animated* sprites: the Expression Engine can drive a Video Generation connection to produce a brief expression clip, convert it to a looping GIF, and save it into the expression slot. Clip length is set under `Advanced > Video Generation` (`animatedExpressionClipDurationSeconds`, default 3s, range 1–8) alongside prompt templates (`packages/shared/src/constants/video-generation-settings.ts`; `packages/server/src/routes/sprites.routes.ts`).
+
+**(v2.3)** Sprite transparency is now **native-alpha-first**: generated sprites prefer the provider's native alpha channel. For providers that can't return transparent PNGs, the pipeline falls back to a subject-aware saturated chroma matte → border-connected soft matting → color despill; the neural background remover is reserved for genuinely complex backgrounds. Legacy white-background sprites remain cleanable, with restore points.
 
 ## Sprites → Clips (Video-Call Presence) (v2.1)
 
@@ -208,12 +212,13 @@ In **call-only** chat a character can emit two hidden, engine-parsed commands. T
 ## Common Mistakes
 
 - **Putting everything in `description`** — fine up to ~1000 words, bad past that. Split into `personality`, `scenario`, and `system_prompt` (or use a lorebook).
-- **Writing examples in narrative instead of dialogue** — `mes_example` is for teaching voice. Show dialogue exchanges, not backstory.
+- **Writing examples in narrative instead of dialogue** — `mes_example` is for teaching voice. Show dialogue exchanges, not backstory. **(v2.3)** The standard `<START>` separator in `mes_example` survives XML prompt sanitization (even importer-encoded), while other XML-looking card text is still escaped (#3623) — so use `<START>` freely, but don't rely on other angle-bracket markup passing through verbatim.
 - **Forgetting `first_mes`** — without it, the character opens the chat with nothing, and the model often misinterprets silence.
 - **Setting `system_prompt` without understanding it replaces the preset's system prompt** — you lose any framing the preset provides. Usually you want to leave `system_prompt` blank unless you specifically need to override.
 - **Not setting `extensions.appearance`** — breaks selfie generation and image prompts.
 - **Using purple-prose descriptions** — cram too many adjectives in and the model starts writing florid overwrought prose. Be concrete.
 - **Expecting the character to "remember" stuff you didn't put in a prompt** — the card + lorebook + history is all the model sees. If you want persistence outside a chat, use a tool that writes to your own backend.
+- **"Missing" characters that are really a stale filter** — on ≤2.3.2, a saved Character-panel search/tag/favorite filter could persist and hide cards. **(v2.3)** Panel filters are now session-only (stale ones were reset); Full Library sorting and position preferences still persist.
 
 ## API Endpoints
 

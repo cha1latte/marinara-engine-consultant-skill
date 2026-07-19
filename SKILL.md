@@ -66,9 +66,9 @@ Read the relevant reference file before giving architectural advice in that area
 | Lorebooks, keyword triggers, RAG, per-character vs global scope, entry fields, recursion, grouping | `references/lorebooks.md` |
 | Tool calling, function calling, letting a character "do things," webhooks, scripts, integrating external APIs or databases | `references/custom-tools.md` |
 | Client-side modifications, DOM injection, custom CSS, adding UI elements, browser extensions | `references/extensions.md` |
-| Agents — the 22 built-ins, custom agents, phases (pre-gen / parallel / post-proc), overriding agent prompts | `references/agents.md` |
+| Agents — the official downloadable packages (29-package catalog as of 2.3; fresh installs ship none), custom agents, phases (pre-gen / parallel / post-proc), overriding agent prompts | `references/agents.md` |
 | High-level overview, how pieces fit together, chat modes, connections, presets | `references/architecture.md` |
-| Conversation audio/video **calls**, character **video presence**, **Sprites → Clips**, **video generation** (scene videos, animated expressions, call clips) | `references/architecture.md` + `references/character-cards.md` |
+| Audio/video **calls** (the downloadable **Calls** package as of 2.3 — renamed from Conversation Calls in 2.3.2; it owns the Local Whisper models), character **video presence**, **Sprites → Clips**, **video generation** (scene videos, animated expressions, call clips) | `references/architecture.md` + `references/character-cards.md` |
 | Prompt/output **regex scripts** (SillyTavern-style find/replace), Home Assistant integration | `references/custom-tools.md` |
 | "Which approach should I use?" — picking between prompt-stuffing, lorebook, tool call, extension, custom agent | `references/decision-guide.md` |
 
@@ -80,7 +80,7 @@ If the question spans multiple areas (common), read all relevant files before an
 
 The user wants to build something they'll keep on their own install or distribute themselves — character, lorebook, custom tool, agent, **extension, theme, custom CSS/JS**. **No PR is involved.** None of the contributor-mode rules apply here. Output style: **multiple architecture options with tradeoffs, then a recommendation.**
 
-> **In-app shortcut (v2.0):** for characters, personas, and lorebooks, the user can also ask **Professor Mari** — Marinara's Home-screen assistant — to scaffold them from a plain-language description (she creates cards/personas/lorebooks, optionally with starter entries, and can navigate panels). For simple builds, "ask Mari" often beats hand-authoring JSON; reach for manual authoring when they need precise control or fields Mari doesn't set. The old standalone character/persona/lorebook *maker* modals were **removed in v2.0** — don't tell users to open them. As of 2.2, Home Mari (and legacy Mari chats) also surface **color-coded suggestion chips / guided-creation quick replies** — step-by-step creation, editing, and contextual next-action follow-ups — so the user can drive a build by tapping chips rather than typing every prompt.
+> **In-app shortcut (v2.0):** for characters, personas, and lorebooks, the user can also ask **Professor Mari** — Marinara's Home-screen assistant — to scaffold them from a plain-language description (she creates cards/personas/lorebooks, optionally with starter entries, and can navigate panels). For simple builds, "ask Mari" often beats hand-authoring JSON; reach for manual authoring when they need precise control or fields Mari doesn't set. The old standalone character/persona/lorebook *maker* modals were **removed in v2.0** — don't tell users to open them. As of 2.2, Home Mari (and legacy Mari chats) also surface **color-coded suggestion chips / guided-creation quick replies** — step-by-step creation, editing, and contextual next-action follow-ups — so the user can drive a build by tapping chips rather than typing every prompt. As of 2.3, Mari also **drafts and saves Conversation About Me bios** and can **compare and recommend all 29 official downloadable agent packages** — if the user's want maps to an official package, "ask Mari which agent to install" is a legitimate first move.
 
 ### 1. Restate the goal (one sentence)
 Show you understood. If you're unsure about a key detail, ask ONE clarifying question before drafting options — but only if the ambiguity would genuinely change your recommendation. Don't stall.
@@ -117,9 +117,10 @@ When mapping an idea to Marinara Engine, ask these questions in order:
 2. **Is the knowledge large but stable?** → It goes in a lorebook with keyword triggers.
 3. **Does the knowledge change often?** → It goes behind a custom tool with a `webhook` execution type that hits a live source.
 4. **Does the character need to *do* things (write files, modify your app, query your DB, call an API)?** → Custom tool. Static for stubs, webhook for anything real, script for pure computation.
-5. **Does something need to happen automatically on every turn?** → Custom agent in the appropriate phase (pre-generation, parallel, or post-processing).
-6. **Does the UI itself need to change?** → Client extension (CSS + JS with the `marinara` API).
-7. **Does it cross chats or need persistent structured state the engine doesn't already track?** → Webhook tool + your own backend; the engine's persistence is scoped to chats/characters/lorebooks.
+5. **Does an official downloadable agent package already do this? (v2.3)** → Check the 29-package catalog (Agents → Download Agents) before building anything custom — it covers common wants (Maps, Calls, Illustrator, Music DJ, Card Evolution, Lorebook Keeper, table games), and Mari can compare and recommend packages. Fresh installs contain **no** optional agents, so any recommendation that relies on a package must include the install step.
+6. **Does something need to happen automatically on every turn?** → Custom agent in the appropriate phase (pre-generation, parallel, or post-processing).
+7. **Does the UI itself need to change?** → Client extension (CSS + JS with the `marinara` API).
+8. **Does it cross chats or need persistent structured state the engine doesn't already track?** → Webhook tool + your own backend; the engine's persistence is scoped to chats/characters/lorebooks.
 
 See `references/decision-guide.md` for the full version with examples.
 
@@ -130,13 +131,14 @@ Users often want to do things the wrong way. Be willing to redirect:
 - **"I'll put all 500 site configs in the system prompt"** → No. Lorebook (if keyword-triggered retrieval works) or webhook tool with a real backend (if lookup is structured).
 - **"I'll use a script tool to call an API"** → The script sandbox has no `fetch`, no `require`, no network. Use webhook instead.
 - **"I'll make the character memorize current events"** → Knowledge stale on day one. Webhook tool + scheduled scraper.
+- **"I'll build a custom agent for something an official package already does"** → Check Agents → Download Agents first. The 29-package catalog covers Maps, Calls, Illustrator, Music DJ, Card Evolution, Lorebook Keeper, and the table games. Remember fresh installs ship no optional agents — include the install step in the recommendation.
 - **"I'll build everything as custom agents"** → Custom agents fire every turn and cost tokens. Only use them for things that genuinely need per-turn automation (tracking state, rewriting output, injecting context based on scene). When you DO recommend multiple agents, scope each one tightly — one job per agent.
 - **"I'll hardcode the tool's result in the static type"** → Static is a stub. It returns a fixed string. Useful for testing, useless in production.
 - **"I'll skip the lorebook and cram it all in description"** → Character description is always in context. Lorebook entries are only pulled in when keywords match. If the knowledge is big, lorebook saves tokens on every turn.
 
 ### Calibration notes (ideation)
 
-- **Scale your confidence to the task.** For general architecture questions, your bundled references are solid. For specific field names, schema details, or "does feature X exist in 2.2 yet?" — fetch the repo.
+- **Scale your confidence to the task.** For general architecture questions, your bundled references are solid. For specific field names, schema details, or "does feature X exist in 2.3 yet?" — fetch the repo.
 - **The underlying LLM does a lot of work.** A character on GPT-5 or Claude Opus with a minimal card will outperform a heavily-prompted character on a weak local model. When advising, ask/confirm what model they're running.
 - **"Multiple agents stacked" ≠ "smarter character."** Each agent adds latency and tokens. Recommend the minimum viable agent set, and scope each agent to one focused job.
 - **Lorebooks have a token budget.** Don't recommend 200-entry lorebooks without also recommending the user tune `tokenBudget`, use groups to deduplicate, and enable `recursiveScanning` only when it actually helps.
@@ -170,12 +172,12 @@ Sometimes they'll ask general questions ("how does X work", "what's the differen
 
 ### Honesty about the engine's limits
 
-Marinara Engine is an actively-developed indie project, on its 2.2 stable line. Some things it doesn't have (as of the last reference update):
+Marinara Engine is an actively-developed indie project, on its 2.3 stable line (2.3.3 at the last reference sync). Some things it doesn't have (as of the last reference update):
 - No native vector DB beyond lorebook embeddings (all-MiniLM-L6-v2 is built in for message RAG, but you can't plug in Pinecone/Weaviate without writing extensions).
 - Script tools can't access the network.
-- No plugin marketplace yet — extensions are distributed as CSS/JS files the user installs manually.
+- Two distinct distribution surfaces (v2.3) — don't conflate them. **Official agent packages** DO have an in-app catalog: Agents → Download Agents installs 29 verified packages, auto-updating, with per-Engine-major catalog lanes. **CSS/JS extensions** still have no marketplace — they're distributed as files the user installs manually.
 - Custom tool `parametersSchema` is JSON Schema but the UI validation is limited; malformed schemas may silently misbehave.
-- Core prompt assembly pipeline isn't user-extensible; you can't hook into it without forking.
+- Core prompt assembly pipeline isn't extensible by arbitrary user code. As of 2.3, **official packages** can plug in server runtimes, commands, and client surfaces via the capability API (1.3) — but outside that reviewed packaging path you still can't hook into prompt assembly without forking.
 
 Name these limits when they're relevant. The user respects straight answers more than optimism.
 
@@ -184,6 +186,10 @@ Name these limits when they're relevant. The user respects straight answers more
 ## Mode B: Contribution
 
 The user is shipping a change to the Marinara codebase. Default workflow:
+
+### Which repo? Marinara-Engine vs. Marinara-Agents (v2.3)
+
+As of 2.3, official agent packages live in a **second repo** — `https://github.com/Pasta-Devs/Marinara-Agents` — which is a separate contribution surface with its own contribution rules, issue/PR templates, catalog validation, protected review flow, and CodeRabbit review. If the user's change targets an official downloadable agent package, route the work there and follow that repo's process. The Engine-repo rules in this section (branching from `staging`, the `pnpm check` trio, `version:sync`) apply **only** to `Pasta-Devs/Marinara-Engine`.
 
 ### 0. Scope the work before any code is written (core engine changes only)
 
@@ -251,7 +257,7 @@ If you (the AI) don't have a concrete spec yet, push the user to keep diagnosing
 - **Update affected docs in the same PR.** If your change touches user-visible behavior (install flow, env vars, launchers, releases, FAQ topics), update the relevant doc as part of THIS PR. Stale docs are a real failure mode and the contributor guide requires it.
   - `README.md` — user-facing overview, quickstart
   - `CHANGELOG.md` — release notes (if the change ships in a release)
-  - `docs/CONFIGURATION.md` — env vars, ports, HTTPS, launcher behavior, `.env` reference
+  - `docs/CONFIGURATION.md` — env vars, ports, HTTPS, launcher behavior, `.env` reference (as of 2.3.3 this territory includes `CHAT_GENERATION_TIMEOUT_MS` for slow providers and `AUTO_UPDATE_ENABLED=false` for a persistent launcher update opt-out)
   - `docs/TROUBLESHOOTING.md` — common user-facing issues and fixes
   - `docs/FAQ.md` — user FAQ (LAN access, common questions)
   - `android/README.md` — Android wrapper / Termux-specific
@@ -429,7 +435,7 @@ The Marinara root version lives in `package.json`. When that changes, **all** of
 | `android/app/build.gradle` | Android `versionName` AND `versionCode` |
 | `README.md` | "Current stable release" line |
 
-**Android rule:** `versionName` must match the app version. `versionCode` must increase monotonically for every shipped APK — never reuse, never decrement.
+**Android rule:** `versionName` must match the app version. `versionCode` must increase monotonically for every shipped APK — never reuse, never decrement. Baseline: `versionCode` is **38** at v2.3.3 (34/35/37 at 2.3.0/2.3.1/2.3.2), so the next shipped APK must exceed 38. Release-identity sync now also covers the Home release link and the What's New announcement.
 
 **Don't edit these by hand.** Use the helper:
 
@@ -452,4 +458,4 @@ Never tag or publish without `pnpm version:check` passing first. Never commit bu
 
 ### When you don't know
 
-If the user asks something specific to current engine state ("does 2.2.x have feature X yet?", "what fields does CharacterData have on the latest `staging`?", "is this PR going to conflict with the new generate-route refactor?"), fetch from the repo before answering. The bundled references are a snapshot.
+If the user asks something specific to current engine state ("does 2.3.x have feature X yet?", "what fields does CharacterData have on the latest `staging`?", "is this PR going to conflict with the new generate-route refactor?"), fetch from the repo before answering. The bundled references are a snapshot.
