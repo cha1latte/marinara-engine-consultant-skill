@@ -35,7 +35,7 @@ From `createLorebookEntrySchema`:
 | Field | Type | Default | What it does |
 |---|---|---|---|
 | `name` | string | required | Display name in the UI. Not sent to model. |
-| `content` | string | `""` | The text injected when triggered. |
+| `content` | string | `""` | The text injected when triggered. Passed to the model verbatim as of v2.3.4 (no HTML-escaping) — see Entry length under Best Practices. |
 | `keys` | string[] | `[]` | Primary trigger keywords. Matching any triggers the entry. |
 | `secondaryKeys` | string[] | `[]` | Additional triggers, used with `selective` + `selectiveLogic`. |
 | `enabled` | bool | `true` | Master on/off. |
@@ -76,7 +76,7 @@ From `createLorebookEntrySchema`:
 
 ## Generation Trigger Types & Folders
 
-Entries can be gated by **which generation triggered them** via `generationTriggerFilters` (+ `generationTriggerFilterMode`): `chat` (Chat reply), `continue`, `autonomous`, etc. Note (1.6/2.0): guided `/guided` and guided manual replies now fire **Chat reply** triggers — so if an entry should fire on guided replies, set its trigger to `chat`, not Continue/Autonomous.
+Entries can be gated by **which generation triggered them** via `generationTriggerFilters` (+ `generationTriggerFilterMode`): `chat` (Chat reply), `continue`, `autonomous`, etc. Note (1.6/2.0): guided `/guided` and guided manual replies now fire **Chat reply** triggers — so if an entry should fire on guided replies, set its trigger to `chat`, not Continue/Autonomous. **(v2.3.4)** `noodle` was added as a trigger type (#3842) — an entry can target **Noodle timeline refreshes only**, without leaking into chat/continue/autonomous generations.
 
 Entries can also live in **folders** (`folderId`); toggling a folder gates every entry inside it. And `additionalMatchingSources` lets an entry's keys also match against character/persona fields (name, description, personality, scenario, tags), not just recent chat messages.
 
@@ -175,11 +175,11 @@ A `superRefine` enforces that a global lorebook (`isGlobal: true`) **cannot also
 - Persona-specific knowledge (about the user's role) → persona-scoped.
 - Current scene state, one-session plot flags → chat-scoped.
 
-**(v2.2)** Lorebooks can also activate inside **Noodle** timeline refreshes via an opt-in "Lorebook context" setting (off by default), reusing the group-chat multi-character lorebook system — see `references/architecture.md` → Noodle. **(v2.3)** The roster-scaling budget was replaced: world/lore context and chat carryover each get a fixed **8,192-token** budget, and linked-lorebook macros resolve before Noodle refresh prompts (#3687).
+**(v2.2)** Lorebooks can also activate inside **Noodle** timeline refreshes via an opt-in "Lorebook context" setting (off by default), reusing the group-chat multi-character lorebook system — see `references/architecture.md` → Noodle. **(v2.3)** The roster-scaling budget was replaced: world/lore context and chat carryover each get a fixed **8,192-token** budget, and linked-lorebook macros resolve before Noodle refresh prompts (#3687). **(v2.3.4)** Entries can also target Noodle refreshes *exclusively* via the `noodle` generation trigger filter — see Generation Trigger Types & Folders above.
 
 ## Token Budget Management
 
-The lorebook's `tokenBudget` caps total injected content per turn. If more entries match than fit, lower-`order` entries inject first (constant entries and group weighting also factor in); entries that don't fit are skipped — the World Info Inspector surfaces which were budget-skipped (a 1.6/2.0 visibility feature).
+The lorebook's `tokenBudget` caps total injected content per turn. If more entries match than fit, lower-`order` entries inject first (constant entries and group weighting also factor in); entries that don't fit are skipped — the World Info Inspector surfaces which were budget-skipped (a 1.6/2.0 visibility feature). **(v2.3.4)** Current semantic (vector) matches now get the **same budget priority** as current keyword matches — configured entry order, not activation method, decides which entries fit when over budget. (Before 2.3.4, semantically activated entries were effectively second-class in the budget queue.)
 
 **Practical sizing:**
 - For casual characters: 500–1000 tokens budget.
@@ -213,7 +213,7 @@ Three related v2.0 surfaces handle "the user mentioned a concept without the exa
 
 **Embeddings:** entries are embedded via a configured **embedding connection** (e.g. the Local Model sidecar's `/api/sidecar/v1/embeddings`); per-entry `excludeFromVectorization` (and the lorebook-level "No Vector") opt entries out. Embedding isn't purely automatic — it depends on having an embedding source configured.
 
-**(v2.2) Vector search as keyword-miss fallback.** Semantic/vector similarity now also acts as a fallback for **ordinary keyed entries**: when an entry's keyword matching misses, vector similarity can still activate it, subject to the same score thresholds, max-results cap, filters, and probability gates. Previously this semantic path was unreachable for keyed entries.
+**(v2.2) Vector search as keyword-miss fallback.** Semantic/vector similarity now also acts as a fallback for **ordinary keyed entries**: when an entry's keyword matching misses, vector similarity can still activate it, subject to the same score thresholds, max-results cap, filters, and probability gates. Previously this semantic path was unreachable for keyed entries. **(v2.3.4)** Entries activated this way also compete for the token budget on equal footing with keyword matches — see Token Budget Management.
 
 **(v2.3) Baseline-calibrated similarity scores.** Similarity scores are calibrated against an unrelated-text baseline before threshold comparison, so embedding models whose raw cosine scores cluster high (~0.97) now work at normal thresholds — no more hand-tuned extreme thresholds (#3627).
 
@@ -269,6 +269,7 @@ For time-based gating:
 - If an entity has a lot of lore, split into multiple entries with overlapping keywords (general info + specific deep-dives).
 - **(v2.1)** This guidance is about *prompt economy*, not a storage limit. The old agent/tool write-path size cap on entry `content` was removed, so large entries written by `save_lorebook_entry` or the **Lorebook Keeper** agent persist intact with no pre-storage truncation. (They still count against a lorebook's `tokenBudget` at injection time — a big entry can be budget-skipped even though it's stored in full.)
 - **(v2.3)** Lorebook Keeper is now a **downloadable Misc agent package** (`lorebook-keeper`) from the official catalog — absent on fresh installs, and its Game-setup controls appear only when installed.
+- **(v2.3.4)** Entry `content` reaches the model **verbatim** — it is no longer HTML-escaped, so angle brackets and inline HTML/XML pass through exactly as written. You can deliberately use markup like `<scenario>` blocks in entries; conversely, watch for stray pseudo-XML the model might mistake for structure.
 
 ### When NOT to use lorebooks
 - **Small stable knowledge** — just put it in the character card.
@@ -301,7 +302,7 @@ Marinara imports SillyTavern lorebooks/world-info directly via Settings → Impo
 ## UI Location
 
 - **Lorebooks panel** (right sidebar) — create, edit, attach to characters/chats.
-- **World Info Inspector** — live view of which entries are active in the current chat, with token usage and keyword reasons.
+- **World Info Inspector** — live view of which entries are active in the current chat, with token usage and keyword reasons. **(v2.3.4)** Roleplay's **Active Context** now shows the same lorebook diagnostics as Conversation and Game (#3840): activation sources, matched keys, semantic scores, current-location grouping, budget skips, and expandable entry content.
 
 ### Editor conveniences (v2.3 / v2.2 / 2.1.1)
 
@@ -309,4 +310,4 @@ Marinara imports SillyTavern lorebooks/world-info directly via Settings → Impo
 - **Sort by entry status** — the editor can sort entries by their entry status (2.1.1).
 - **Undo/redo & Tab indent (v2.3)** — native undo/redo works again in the Content and Description fields, and Tab / Shift+Tab indents/unindents every selected line without replacing the selection (2.3.2).
 - **Lorebook Prompt Position (v2.3)** — the shared lorebook editor shell has a lorebook-level **Prompt Position** selector governing where the lorebook's content is placed in the prompt, distinct from the per-entry `position` field.
-- **Character Lorebook tab** — **Edit Linked Lorebook** was renamed **Edit Embedded Lorebook** (2.1.1). A **Remove from card** action unlinks/clears an embedded lorebook — it works even for cards with no separate linked copy. (Row delete only unlinks the standalone; the embedded copy stays until you Remove from card.) **(v2.3)** File-native storage enforces primary/natural-key constraints, preventing ambiguous duplicate lorebook links.
+- **Character Lorebook tab** — **Edit Linked Lorebook** was renamed **Edit Embedded Lorebook** (2.1.1). A **Remove from card** action unlinks/clears an embedded lorebook — it works even for cards with no separate linked copy. (Row delete only unlinks the standalone; the embedded copy stays until you Remove from card.) **(v2.3)** File-native storage enforces primary/natural-key constraints, preventing ambiguous duplicate lorebook links. **(v2.3.4)** Embedded-lorebook data survives partial Character PATCHes (deep-merge, #3858), and unknown embedded-lorebook properties survive card validation (#3859) — imported cards with nonstandard fields no longer lose them.

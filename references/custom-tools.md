@@ -24,7 +24,7 @@ When the tool is enabled and the chat is configured to allow tools, the tool is 
 
 **Local models:** native (OpenAI-compatible) tool calling only fires on the local llama.cpp sidecar when it's launched with `--jinja` — gated by the runtime's native-tool-calls toggle (`enableNativeToolCalls`). Without it, custom tools won't be called on a local model even if defined. Frontier provider models call tools normally.
 
-**Connection Custom Parameters (v2.3):** saved Custom Parameters on a Connection apply to **every** API-backed text generation on that connection — including Noodle and locally hosted custom endpoints — while per-chat/per-call overrides still take precedence. Arbitrary JSON and bare string parameter values are preserved as-is, and unified reasoning-effort requests work again for discovered OpenRouter models (#3688).
+**Connection Custom Parameters (v2.3):** saved Custom Parameters on a Connection apply to **every** API-backed text generation on that connection — including Noodle and locally hosted custom endpoints — while per-chat/per-call overrides still take precedence. Arbitrary JSON and bare string parameter values are preserved as-is, and unified reasoning-effort requests work again for discovered OpenRouter models (#3688). **(v2.3.4, #3845)** Enabled Connection generation defaults now apply across **every Noodle text-generation path**, and custom OpenAI-compatible endpoints accept explicitly enabled **top-k**, **reasoning-effort**, and **verbosity** parameters.
 
 ## Execution Types
 
@@ -261,6 +261,8 @@ Custom tools are managed in **Agents Panel → Custom Tools** (the panel has a "
 
 Tools are attached to chats via chat settings. A tool created in the panel is available globally; whether it's *active* in a given chat depends on that chat's tool list.
 
+**Tool portability (v2.3.4, #3953):** custom tools do **not** travel with agent files. Exported agents no longer bundle custom function definitions, and imported agent files cannot install functions, grant themselves tool access, or impersonate curated agent types. A recipient of a shared agent must **re-create (or already have) the tools and explicitly attach them** after import — any recommendation involving a shared agent file needs that step spelled out.
+
 ## API Endpoints
 
 - `GET /api/custom-tools` — list
@@ -270,12 +272,14 @@ Tools are attached to chats via chat settings. A tool created in the panel is av
 
 ## Regex Scripts — Text Transforms, Not Tool Calls
 
-Distinct from custom tools: **Regex Scripts** are SillyTavern-style find/replace transforms that rewrite text as it moves through the pipeline (prompts and/or model output). They don't give the model a callable capability — they mutate strings. Reach for this when a user asks *"how do I transform / clean up / rewrite the prompt or the output text"* (strip a leftover prefix, swap a name on the way in or out, hide a control token, tidy formatting) — **not** a custom tool, and **not** a UI extension.
+Distinct from custom tools: **Regex Scripts** are SillyTavern-style find/replace transforms that rewrite text as it moves through the pipeline (prompts and/or model output). They don't give the model a callable capability — they mutate strings. Reach for this when a user asks *"how do I transform / clean up / rewrite the prompt or the output text"* (strip a leftover prefix, swap a name on the way in or out, hide a control token, tidy formatting) — **not** a custom tool.
 
 - **What it does:** each script pairs a regex `find` with a `replace`, applied to prompt and/or output text — the SillyTavern regex model.
 - **Scope:** scripts are scoped **per-character** (Character editor's regex section, `CharacterRegexSection.tsx`) and **per-preset** (Presets panel, `PresetsPanel.tsx`). Backed by a `regexScripts` DB table (`regex-scripts.ts`) with seeded defaults (`seed-regex.ts`); applied on the client via `use-apply-regex.ts`.
 - **SillyTavern-import-compatible:** existing ST regex scripts import over, the same way lorebooks/world-info do.
 - **ReDoS safety validator (relaxed in v2.2):** each `find` pattern is screened for catastrophic-backtracking risk before it's saved/run. As of 2.2 the check is less aggressive — **linear, delimiter-bounded field patterns are now allowed** (e.g. `([^|]+)\|([^|]+)\|([^|]+)` for splitting pipe-delimited fields), which previously got flagged. **Overlapping broad-unbounded chains** (the actual catastrophic-backtracking shapes, e.g. stacked `.*`/`.+` with overlapping character classes) are still **rejected**. If a script is refused, rewrite it with bounded classes rather than greedy wildcards.
-- **Source of truth:** `docs/REGEX_SCRIPTS.md`.
+- **Source of truth:** `docs/extending/regex-scripts.md`.
 
 (Regex Scripts were added in an intermediate 2.0.x update and documented in the 2.1 doc refresh — an established surface, not brand-new in 2.1.)
+
+**Related, but not tools either:** for prompt-text logic (conditional macros with `||` / `&&` / parentheses / equality-list shorthand, and the `{{group}}` macro, both v2.3.4), see the Macros coverage in `architecture.md` and `character-cards.md`.

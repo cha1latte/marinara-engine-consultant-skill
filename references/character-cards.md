@@ -69,15 +69,15 @@ Not all fields get sent to the model on every turn. Here's roughly what happens:
 |---|---|---|
 | `name` | yes | Always, as the character identifier. |
 | `description` | yes | Core system prompt on every turn. Usually the biggest block. |
-| `personality` | yes | Usually appended to description in the prompt preset. |
+| `personality` | yes | Its own section, immediately after `description`. |
 | `scenario` | yes | As a separate section; sets the framing. |
 | `first_mes` | yes | Only as the first assistant turn. Not re-sent afterward. |
-| `mes_example` | yes | Early in the prompt; teaches the model voice. |
+| `mes_example` | yes | The last card section in the prompt (after `scenario`); teaches the model voice. |
 | `system_prompt` | yes | Replaces the preset's system prompt section if non-empty. |
 | `post_history_instructions` | yes | Inserted at the end, after recent messages. |
 | `tags`, `creator`, `creator_notes` | no | Metadata, not sent to model. |
-| `extensions.appearance` | yes | Used in image generation and can be referenced in prompts. |
-| `extensions.backstory` | sometimes | Depends on preset configuration. |
+| `extensions.appearance` | yes | An ordered card section (between `backstory` and `scenario`); also used in image generation. |
+| `extensions.backstory` | yes | An ordered card section (between `personality` and `appearance`). |
 | `extensions.depth_prompt` | yes | Inserted at N messages deep. |
 | `extensions.talkativeness` | no (structurally) | Used by autonomous messaging logic. |
 | `character_book` (embedded lorebook) | yes | Entries trigger normally based on keywords. |
@@ -86,14 +86,18 @@ Not all fields get sent to the model on every turn. Here's roughly what happens:
 
 **(v2.2)** The advanced prompt fields — `system_prompt`, `post_history_instructions`, and `extensions.depth_prompt` — now apply across **Conversation and Game modes too**, not just Roleplay. A card built for Conversation can carry the same system/post-history/depth steering it would in Roleplay.
 
+**(v2.3.4)** Card sections keep a **guaranteed order** in the prompt — Description → Personality → Backstory → Appearance → Scenario → then Example Dialogue when present — and that order holds across preset markers, fallbacks, agent lore, and Game/scene card contexts (#3817).
+
+**(v2.3.4)** Field content reaches the model **verbatim**: angle brackets in card fields, persona, lorebook entries, memories, and scene text are no longer HTML-escaped, so `<thinking>`, `<scenario>`, or an inline `<div>` pass through exactly as written. Deliberate XML/HTML markup is now a supported authoring tool (structural section wrappers and agent value/attribute escapers are unchanged) — see Common Mistakes for the flip side.
+
 ## Character vs. Persona: A Critical Distinction
 
 **Character** = an AI entity the user chats with.
 **Persona** = the user's own identity in the chat.
 
-They have similar fields but serve opposite roles. If the user asks "how do I give my character a detailed backstory," you're building a character. If they ask "how do I tell the AI about *me*," you're building a persona. The engine substitutes `{{user}}` in prompts with the active persona's name and injects the persona's data into the prompt too. **(v2.3)** Two caveats: a **Roleplay chat created with no Persona stays persona-less end-to-end** (first snapshot, provider prompt, scene generation, combat context) — only Conversation falls back to the globally active Persona. And `{{user}}` / `{{char}}` and other macros in `first_mes`, alternate greetings, and `/guided` instructions now resolve at the **final provider boundary** — including lorebook routing and embedding scans — so raw placeholders can no longer reach the model (#3704).
+They have similar fields but serve opposite roles. If the user asks "how do I give my character a detailed backstory," you're building a character. If they ask "how do I tell the AI about *me*," you're building a persona. The engine substitutes `{{user}}` in prompts with the active persona's name and injects the persona's data into the prompt too. **(v2.3)** Two caveats: a **Roleplay chat created with no Persona stays persona-less end-to-end** (first snapshot, provider prompt, scene generation, combat context) — only Conversation falls back to the globally active Persona. And `{{user}}` / `{{char}}` and other macros in `first_mes`, alternate greetings, and `/guided` instructions now resolve at the **final provider boundary** — including lorebook routing and embedding scans — so raw placeholders can no longer reach the model (#3704). **(v2.3.4)** Name Prefix History is now **persona-accurate per turn**: historical user turns stay labeled with the Persona that actually sent them, so switching Personas no longer rewrites earlier prefixes.
 
-**(v2.3)** Both a character's metadata and a persona's lead their primary identity block with a clearly labeled **avatar upload/replace field** (same upload/crop flow as the editor portrait), above **Name** and the **Title / comment** field (synced with the editor-header field) — a short human label for the card, distinct from the model-facing `name`. **(v2.3)** Personas also gained an **Open Full Library** mirroring the Character Library — card grid, search, sorting, preview pane, paging, scroll restoration, and the editor return flow; both libraries use the Settings chroma text color.
+**(v2.3)** Both a character's metadata and a persona's lead their primary identity block with a clearly labeled **avatar upload/replace field** (same upload/crop flow as the editor portrait), above **Name** and the **Title / comment** field (synced with the editor-header field) — a short human label for the card, distinct from the model-facing `name`. **(v2.3)** Personas also gained an **Open Full Library** mirroring the Character Library — card grid, search, sorting, preview pane, paging, scroll restoration, and the editor return flow; both libraries use the Settings chroma text color. **(v2.3.4)** Editor polish: tracker-card color settings preview immediately and persist, and cropped avatars stay contained in their editor upload targets and no longer hijack page clicks (#3741/#3939).
 
 ## Conversation-mode Profile
 
@@ -108,6 +112,8 @@ These fields live on the character/persona `extensions` schema (`character.schem
 ### Conversation macros
 
 Conversation mode registers a `Conversation` macro category (`packages/shared/src/utils/macro-engine.ts:284-363`). Profile macros pull the fields above: `{{convo_display}}`, `{{char_about}}`, `{{persona_about}}`, `{{convo_behavior}}`. **Relocation macros** move an auto-inserted block to where you place it (and skip its automatic insertion): `{{context}}` / `{{status}}`, `{{commands}}`, `{{reactRules}}`, `{{replyRules}}`, `{{memories}}`, `{{lorebook}}`.
+
+**(v2.3.4)** Two macro additions usable in card text generally (not Conversation-only): **`{{group}}`** expands to every other active chat character — it works during targeted Roleplay group generation too, and the full roster is kept available in manual group generation so it never resolves empty — and **conditional prompt macros** now support `||` (OR), `&&` (AND), parentheses, and an equality-list shorthand, with examples in-app.
 
 ### Theming the about-me popout
 
@@ -124,12 +130,12 @@ Mari's `system_prompt` is blank in her card, but the server injects a large `MAR
 - `<assistant_commands>` — the hidden actions she can emit (below)
 - `<data_access>` — how to use `[fetch: ...]` to load items on demand
 
-**For a custom character with a lot of domain knowledge:** either do what Mari does structurally (large `description` + `system_prompt` with XML-tagged sections) or use a lorebook for the reference material.
+**For a custom character with a lot of domain knowledge:** either do what Mari does structurally (large `description` + `system_prompt` with XML-tagged sections) or use a lorebook for the reference material. **(v2.3.4)** The XML-tagged-sections pattern now fully applies to user-authored cards too: leaf content reaches the model verbatim, so your own tags pass through exactly as written (see "Where Each Field Shows Up in the Prompt").
 
 ### What Mari can actually do (v2.0)
-Her hidden actions are content-creation + navigation helpers, not a generic agent (`docs/PROFESSOR_MARI.md`): create personas, create/update character cards, update personas, create lorebooks (optionally with starter entries), create Conversation/Roleplay chats, navigate to panels/settings tabs, fetch existing items to inspect before advising/editing, and read public Fandom/MediaWiki pages. She is a guide that takes a few *safe* actions — she fetches an item before editing it, and she does **not** run the full Game-Mode setup wizard for you. Beyond the seed-prompt content commands, her Home-screen *workspace agent* can also create/edit **agents, browser extensions, custom tools, and themes** via a `mari` CLI (`mari db` over `agent_configs`/`custom_tools`/`installed_extensions`, `mari themes`), requesting browser approval before database changes.
+Her hidden actions are content-creation + navigation helpers, not a generic agent (`docs/PROFESSOR_MARI.md`): create personas, create/update character cards, update personas, create lorebooks (optionally with starter entries), create Conversation/Roleplay chats, navigate to panels/settings tabs, fetch existing items to inspect before advising/editing, and read public Fandom/MediaWiki pages. She is a guide that takes a few *safe* actions — she fetches an item before editing it, and she does **not** run the full Game-Mode setup wizard for you. Beyond the seed-prompt content commands, her Home-screen *workspace agent* can also create/edit **agents, custom tools, and themes** via a `mari` CLI (`mari db` over `agent_configs`/`custom_tools`, `mari themes`), requesting browser approval before database changes. **(v2.3.4)** Mari no longer creates or edits browser extensions — the extension feature was removed from the engine, and her extension instructions went with it.
 
-**(v2.3)** Mari also drafts Conversation **About Me** bios: she inspects the saved character/persona, writes the blurb in their voice, and saves it to the real `aboutMe` field (the per-editor AI Write controls were removed — see the Conversation-mode Profile section). And her card/app-data updates are **field-safe**: partial updates via Mari (or any app-data caller) preserve unrelated fields — greetings, example dialogue, creator notes, system prompts, post-history instructions, character versions, and alternate greetings all survive an update to some other field (#3708); blank Mari generation turns were fixed and lorebook creation made atomic (#3674).
+**(v2.3)** Mari also drafts Conversation **About Me** bios: she inspects the saved character/persona, writes the blurb in their voice, and saves it to the real `aboutMe` field (the per-editor AI Write controls were removed — see the Conversation-mode Profile section). And her card/app-data updates are **field-safe**: partial updates via Mari (or any app-data caller) preserve unrelated fields — greetings, example dialogue, creator notes, system prompts, post-history instructions, character versions, and alternate greetings all survive an update to some other field (#3708); blank Mari generation turns were fixed and lorebook creation made atomic (#3674). **(v2.3.4)** The same field safety now extends to the HTTP layer: partial nested `PATCH /api/characters/:id` requests deep-merge without materializing destructive defaults (#3858) — see API Endpoints.
 
 **(v2.1)** Mari's **preset** support is now *structured*: `app_data` `preset.create` / `preset.update` commands can build prompt groups, prompt sections, and preset variables/choice blocks in a **single reversible operation** (#3207). *(Contributor note: `pnpm mari -- --help` at the repo root exposes the built Mari CLI from a source checkout (#3208); its flag parser was fixed so boolean flags like `--tail`/`--raw`/`--patch` no longer swallow positional args (#3222).)*
 
@@ -174,6 +180,8 @@ This flag is Mari-specific. The special **prompt injection** is gated by the har
 - `extensions.talkativeness` — tune based on how vocal they should be. **(v2.1)** In merged group Conversations, autonomous-message accounting (saved attribution, follow-up count, per-character daily budget) is charged to the *selected* autonomous character, not the first group member (#3299).
 - Clear `personality` — distinguishable voice from other group members
 - Lorebook — shared group lore if applicable
+- **(v2.3.4)** The **`{{group}}`** macro expands to every other active chat character — including during targeted/manual Roleplay group generation, where the full roster is kept available so it never resolves empty.
+- **(v2.3.4)** Roleplay group chats support **per-character Hide From AI**: avatar-based multi-selection, recipient markers, and character-scoped prompt history. The global hide option is preserved.
 
 ## Import/Export
 
@@ -192,6 +200,8 @@ Characters can be exported as:
 Characters can have expression sprites for VN-style overlays in roleplay mode. Sprites live in a folder keyed to the character; filenames are expression names (`happy.png`, `sad.png`, `angry.png`, `smug.png`, etc.). The Expression Engine agent picks the matching sprite per message. There's also an automated sprite generation feature (uses image gen + a pose prompt) introduced in recent versions. **(v2.1)** Expression portraits can additionally be generated as short *animated* sprites: the Expression Engine can drive a Video Generation connection to produce a brief expression clip, convert it to a looping GIF, and save it into the expression slot. Clip length is set under `Advanced > Video Generation` (`animatedExpressionClipDurationSeconds`, default 3s, range 1–8) alongside prompt templates (`packages/shared/src/constants/video-generation-settings.ts`; `packages/server/src/routes/sprites.routes.ts`).
 
 **(v2.3)** Sprite transparency is now **native-alpha-first**: generated sprites prefer the provider's native alpha channel. For providers that can't return transparent PNGs, the pipeline falls back to a subject-aware saturated chroma matte → border-connected soft matting → color despill; the neural background remover is reserved for genuinely complex backgrounds. Legacy white-background sprites remain cleanable, with restore points.
+
+**(v2.3.4)** Sprite downloads route through the **Android native file saver**, and on mobile the editor stacks the Upload control under each expression field (#3884).
 
 ## Sprites → Clips (Video-Call Presence) (v2.1)
 
@@ -212,7 +222,7 @@ In **call-only** chat a character can emit two hidden, engine-parsed commands. T
 ## Common Mistakes
 
 - **Putting everything in `description`** — fine up to ~1000 words, bad past that. Split into `personality`, `scenario`, and `system_prompt` (or use a lorebook).
-- **Writing examples in narrative instead of dialogue** — `mes_example` is for teaching voice. Show dialogue exchanges, not backstory. **(v2.3)** The standard `<START>` separator in `mes_example` survives XML prompt sanitization (even importer-encoded), while other XML-looking card text is still escaped (#3623) — so use `<START>` freely, but don't rely on other angle-bracket markup passing through verbatim.
+- **Writing examples in narrative instead of dialogue** — `mes_example` is for teaching voice. Show dialogue exchanges, not backstory. **(v2.3.4)** All prompt leaf content now reaches the model **verbatim** — `<START>` needs no special-casing, and angle-bracket markup / inline HTML in card fields, persona, lorebooks, memories, and scene text passes through exactly as written. You can use XML tags and HTML deliberately, but proofread for stray pseudo-XML, because that goes to the model as-is too. (Supersedes the v2.3 #3623 escaping model; structural section wrappers and agent value/attribute escapers are unchanged.)
 - **Forgetting `first_mes`** — without it, the character opens the chat with nothing, and the model often misinterprets silence.
 - **Setting `system_prompt` without understanding it replaces the preset's system prompt** — you lose any framing the preset provides. Usually you want to leave `system_prompt` blank unless you specifically need to override.
 - **Not setting `extensions.appearance`** — breaks selfie generation and image prompts.
@@ -222,9 +232,9 @@ In **call-only** chat a character can emit two hidden, engine-parsed commands. T
 
 ## API Endpoints
 
-Characters (`/api/characters`, non-exhaustive — see `packages/server/src/routes/characters.routes.ts`):
+Characters (`/api/characters`, non-exhaustive — see `packages/server/src/routes/characters.routes.ts`). **(v2.3.4)** The editor's **Copy ID** control (handy for grabbing the `:id` these routes take) now works on mobile and non-secure contexts, with confirmed-success reporting (#3851).
 - `GET /` — list; `GET /:id` — one
-- `POST /` — create; `PATCH /:id` — update; `DELETE /:id` — delete
+- `POST /` — create; `PATCH /:id` — update; `DELETE /:id` — delete. **(v2.3.4)** Partial nested `PATCH`es **deep-merge** without materializing destructive defaults — omitted `extensions` keys and embedded-lorebook data survive (#3858) — and native cards are validated/normalized **before persistence**, preserving unknown embedded-lorebook properties (#3859).
 - `GET /:id/export` (JSON, with a `format` querystring) **and** `GET /:id/export-png` (PNG with embedded V2 metadata) — these are **two separate endpoints**, not one parameterized export
 - `POST /export-bulk` — bulk export
 - `POST /:id/duplicate`; `GET /:id/versions`, `POST /:id/versions/:versionId/restore`
