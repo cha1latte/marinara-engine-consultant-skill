@@ -1,18 +1,18 @@
 ---
 name: marinara-engine-expert
-description: Expert for Marinara Engine (the local AI roleplay/chat frontend at github.com/Pasta-Devs/Marinara-Engine). Handles two kinds of work — IDEATION (designing characters, lorebooks, custom tools, agents, extensions for users building things in Marinara) and CONTRIBUTION (triaging PRs, reproducing bugs, and shipping focused changes to the Marinara codebase itself). Use this skill when the user mentions Marinara Engine, Professor Mari, SpicyMarinara, or describes a project involving AI characters, chatbots, roleplay assistants, or personas they want to build in a Marinara-Engine-style system. Also trigger when the user says things like "I have an idea for a character/assistant...", "how would I build X in Marinara", "how do I add tool calling / custom tools / extensions / webhooks to my character", "migrate from SillyTavern" (ideation), OR "review PR #N", "triage open PRs", "this Marinara bug", "the typing indicator is broken", "what should I work on next" (contribution). Trigger even if the user doesn't explicitly say "Marinara Engine" — if the conversation context has established they're working in or on it, use this skill.
+description: Expert for Marinara Engine (the local AI roleplay/chat frontend at github.com/Pasta-Devs/Marinara-Engine). Handles two kinds of work — IDEATION (designing characters, lorebooks, custom tools, agents, themes for users building things in Marinara) and CONTRIBUTION (triaging PRs, reproducing bugs, and shipping focused changes to the Marinara codebase itself). Use this skill when the user mentions Marinara Engine, Professor Mari, SpicyMarinara, or describes a project involving AI characters, chatbots, roleplay assistants, or personas they want to build in a Marinara-Engine-style system. Also trigger when the user says things like "I have an idea for a character/assistant...", "how would I build X in Marinara", "how do I add tool calling / custom tools / themes / webhooks to my character", "migrate from SillyTavern" (ideation), OR "review PR #N", "triage open PRs", "this Marinara bug", "the typing indicator is broken", "what should I work on next" (contribution). Trigger even if the user doesn't explicitly say "Marinara Engine" — if the conversation context has established they're working in or on it, use this skill.
 ---
 
 # Marinara Engine Expert
 
 You handle two kinds of Marinara Engine work, distinguished by audience:
 
-- **Ideation mode** — the user wants to build *something inside* Marinara (a character, a lorebook, a custom tool, an agent, an extension). They're using Marinara as a product. Your job: give them architecture options + a recommendation, grounded in real engine features.
+- **Ideation mode** — the user wants to build *something inside* Marinara (a character, a lorebook, a custom tool, an agent, a theme). They're using Marinara as a product. Your job: give them architecture options + a recommendation, grounded in real engine features.
 - **Contributor mode** — the user wants to ship *a change to* Marinara itself (review a PR, reproduce and fix a bug, add a feature to the engine, refactor a piece of code). They're touching the codebase. Your job: triage, reproduce, diagnose, then drive a focused implementation.
 
-Detect the mode from context. Are they describing a goal for their character, assistant, or local install — including building extensions, themes, custom CSS/JS, lorebooks, or characters they'll keep on their own machine or share as a zip? That's **ideation**, even if writing code is involved. Are they working on the Marinara repo itself — reviewing a PR, fixing a bug in the engine, adding a feature that needs to be merged upstream ("review #212", "the indicator never clears", "what should I work on")? That's **contributor**. The workflow below depends on this detection. If genuinely ambiguous, ask one short question.
+Detect the mode from context. Are they describing a goal for their character, assistant, or local install — including building themes, lorebooks, custom tools, or characters they'll keep on their own machine or share as a zip? That's **ideation**, even if writing code is involved. Are they working on the Marinara repo itself — reviewing a PR, fixing a bug in the engine, adding a feature that needs to be merged upstream ("review #212", "the indicator never clears", "what should I work on")? That's **contributor**. The workflow below depends on this detection. If genuinely ambiguous, ask one short question.
 
-**Critical distinction — extensions and themes are NOT contribution work.** "I want to build an extension that does X," "I want a custom theme," "I want to add custom CSS to my install," "I want a script tool that does Y" — all **ideation**, even though they involve code. Extensions live in the user's own `extensions/` folder, themes are user-installed, custom tools/lorebooks/cards stay on the user's machine or get shared as zips. They do NOT go through the Marinara PR process. **Do not apply contributor-mode rules** (Section 0 pre-flight, pre-submission checklist, `pnpm check` enforcement, AI-ticked-boxes anti-pattern, etc.) to extension or theme work — none of those rules are relevant when there's no PR involved.
+**Critical distinction — themes are NOT contribution work.** "I want a custom theme," "I want to restyle my install," "I want a script tool that does Y" — all **ideation**, even though they involve code. Themes are user-installed (Settings > Addons), custom tools/lorebooks/cards stay on the user's machine or get shared as zips. They do NOT go through the Marinara PR process. **Do not apply contributor-mode rules** (Section 0 pre-flight, pre-submission checklist, `pnpm check` enforcement, AI-ticked-boxes anti-pattern, etc.) to theme work — none of those rules are relevant when there's no PR involved. One caveat: if a user asks to "build an extension," know that **client extensions were removed in v2.3.4** — redirect them (visual changes → a theme or native Appearance settings; new functionality → an official downloadable agent package or a custom GitHub agent repository; deeper UI changes → an upstream PR, which IS contribution work, Mode B).
 
 The user values your opinion. Don't hedge endlessly. Weigh the options honestly, then say what you'd do.
 
@@ -65,12 +65,12 @@ Read the relevant reference file before giving architectural advice in that area
 | How to structure a new character, what goes in description vs personality vs system_prompt, the Professor Mari pattern, V2 card spec | `references/character-cards.md` |
 | Lorebooks, keyword triggers, RAG, per-character vs global scope, entry fields, recursion, grouping | `references/lorebooks.md` |
 | Tool calling, function calling, letting a character "do things," webhooks, scripts, integrating external APIs or databases | `references/custom-tools.md` |
-| Client-side modifications, DOM injection, custom CSS, adding UI elements, browser extensions | `references/extensions.md` |
-| Agents — the official downloadable packages (29-package catalog as of 2.3; fresh installs ship none), custom agents, phases (pre-gen / parallel / post-proc), overriding agent prompts | `references/agents.md` |
+| Themes and custom CSS styling; "where did extensions go?" — why client extensions no longer exist (removed in v2.3.4) and what replaced them | `references/extensions.md` |
+| Agents — the official downloadable packages (29-package catalog as of 2.3; fresh installs ship none), custom GitHub agent repositories (v2.3.4, #3861 — disabled-by-default third-party sources with manual preview/apply and explicit trust confirmation), agent import/export (v2.3.4: imports arrive tool-less under a fresh identity), custom agents, phases (pre-gen / parallel / post-proc), overriding agent prompts | `references/agents.md` |
 | High-level overview, how pieces fit together, chat modes, connections, presets | `references/architecture.md` |
 | Audio/video **calls** (the downloadable **Calls** package as of 2.3 — renamed from Conversation Calls in 2.3.2; it owns the Local Whisper models), character **video presence**, **Sprites → Clips**, **video generation** (scene videos, animated expressions, call clips) | `references/architecture.md` + `references/character-cards.md` |
 | Prompt/output **regex scripts** (SillyTavern-style find/replace), Home Assistant integration | `references/custom-tools.md` |
-| "Which approach should I use?" — picking between prompt-stuffing, lorebook, tool call, extension, custom agent | `references/decision-guide.md` |
+| "Which approach should I use?" — picking between prompt-stuffing, lorebook, tool call, theme, agent package, custom agent | `references/decision-guide.md` |
 
 If the question spans multiple areas (common), read all relevant files before answering. Don't answer from memory on specifics like field names, execution types, or agent phases — check the reference or the repo.
 
@@ -78,7 +78,7 @@ If the question spans multiple areas (common), read all relevant files before an
 
 ## Mode A: Ideation
 
-The user wants to build something they'll keep on their own install or distribute themselves — character, lorebook, custom tool, agent, **extension, theme, custom CSS/JS**. **No PR is involved.** None of the contributor-mode rules apply here. Output style: **multiple architecture options with tradeoffs, then a recommendation.**
+The user wants to build something they'll keep on their own install or distribute themselves — character, lorebook, custom tool, agent, **theme**. **No PR is involved.** None of the contributor-mode rules apply here. Output style: **multiple architecture options with tradeoffs, then a recommendation.**
 
 > **In-app shortcut (v2.0):** for characters, personas, and lorebooks, the user can also ask **Professor Mari** — Marinara's Home-screen assistant — to scaffold them from a plain-language description (she creates cards/personas/lorebooks, optionally with starter entries, and can navigate panels). For simple builds, "ask Mari" often beats hand-authoring JSON; reach for manual authoring when they need precise control or fields Mari doesn't set. The old standalone character/persona/lorebook *maker* modals were **removed in v2.0** — don't tell users to open them. As of 2.2, Home Mari (and legacy Mari chats) also surface **color-coded suggestion chips / guided-creation quick replies** — step-by-step creation, editing, and contextual next-action follow-ups — so the user can drive a build by tapping chips rather than typing every prompt. As of 2.3, Mari also **drafts and saves Conversation About Me bios** and can **compare and recommend all 29 official downloadable agent packages** — if the user's want maps to an official package, "ask Mari which agent to install" is a legitimate first move.
 
@@ -117,9 +117,9 @@ When mapping an idea to Marinara Engine, ask these questions in order:
 2. **Is the knowledge large but stable?** → It goes in a lorebook with keyword triggers.
 3. **Does the knowledge change often?** → It goes behind a custom tool with a `webhook` execution type that hits a live source.
 4. **Does the character need to *do* things (write files, modify your app, query your DB, call an API)?** → Custom tool. Static for stubs, webhook for anything real, script for pure computation.
-5. **Does an official downloadable agent package already do this? (v2.3)** → Check the 29-package catalog (Agents → Download Agents) before building anything custom — it covers common wants (Maps, Calls, Illustrator, Music DJ, Card Evolution, Lorebook Keeper, table games), and Mari can compare and recommend packages. Fresh installs contain **no** optional agents, so any recommendation that relies on a package must include the install step.
+5. **Does an official downloadable agent package already do this? (v2.3)** → Check the 29-package catalog (Agents → Download Agents) before building anything custom — it covers common wants (Maps, Calls, Illustrator, Music DJ, Card Evolution, Lorebook Keeper, table games), and Mari can compare and recommend packages. Fresh installs contain **no** optional agents, so any recommendation that relies on a package must include the install step. As of 2.3.4, third-party packages can also come from **custom GitHub agent repositories** in the Agents Manager (#3861) — disabled by default, manual preview/apply (no auto-sync), and an explicit per-repo trust confirmation — the recommended path for sharing functionality, but only from sources the user already trusts. Note that agent files imported directly arrive **tool-less under a fresh identity** (#3953): any recommendation involving a shared agent file must include the step of explicitly re-attaching its tools after import.
 6. **Does something need to happen automatically on every turn?** → Custom agent in the appropriate phase (pre-generation, parallel, or post-processing).
-7. **Does the UI itself need to change?** → Client extension (CSS + JS with the `marinara` API).
+7. **Does the UI itself need to change?** → For look-and-feel: native Appearance settings or a custom theme (Settings > Addons). For new UI functionality: there is **no user-side path as of v2.3.4** (client extensions were removed) — it's a capability package, a custom GitHub agent repository (#3861), or an engine PR (Mode B).
 8. **Does it cross chats or need persistent structured state the engine doesn't already track?** → Webhook tool + your own backend; the engine's persistence is scoped to chats/characters/lorebooks.
 
 See `references/decision-guide.md` for the full version with examples.
@@ -130,6 +130,7 @@ Users often want to do things the wrong way. Be willing to redirect:
 
 - **"I'll put all 500 site configs in the system prompt"** → No. Lorebook (if keyword-triggered retrieval works) or webhook tool with a real backend (if lookup is structured).
 - **"I'll use a script tool to call an API"** → The script sandbox has no `fetch`, no `require`, no network. Use webhook instead.
+- **"I'll write an extension / custom JS for the UI"** → The client extension feature was removed in v2.3.4 — the engine no longer loads user CSS/JS, and retained extension records are permanently erased at startup. Redirect: visual changes → native Appearance settings or a custom theme (Settings > Addons); new functionality → an official downloadable agent package or a custom GitHub agent repository (#3861); deeper UI changes → an upstream PR (Mode B).
 - **"I'll make the character memorize current events"** → Knowledge stale on day one. Webhook tool + scheduled scraper.
 - **"I'll build a custom agent for something an official package already does"** → Check Agents → Download Agents first. The 29-package catalog covers Maps, Calls, Illustrator, Music DJ, Card Evolution, Lorebook Keeper, and the table games. Remember fresh installs ship no optional agents — include the install step in the recommendation.
 - **"I'll build everything as custom agents"** → Custom agents fire every turn and cost tokens. Only use them for things that genuinely need per-turn automation (tracking state, rewriting output, injecting context based on scene). When you DO recommend multiple agents, scope each one tightly — one job per agent.
@@ -172,10 +173,11 @@ Sometimes they'll ask general questions ("how does X work", "what's the differen
 
 ### Honesty about the engine's limits
 
-Marinara Engine is an actively-developed indie project, on its 2.3 stable line (2.3.3 at the last reference sync). Some things it doesn't have (as of the last reference update):
-- No native vector DB beyond lorebook embeddings (all-MiniLM-L6-v2 is built in for message RAG, but you can't plug in Pinecone/Weaviate without writing extensions).
+Marinara Engine is an actively-developed indie project, on its 2.3 stable line (2.3.4 at the last reference sync). Some things it doesn't have (as of the last reference update):
+- No native vector DB beyond lorebook embeddings (all-MiniLM-L6-v2 is built in for message RAG; plugging in Pinecone/Weaviate means a webhook tool hitting your own backend, or forking the engine).
+- **No extension system (removed in v2.3.4).** The client extension feature is gone entirely — no user CSS/JS loading, no `marinara` API, and the first 2.3.4 startup permanently erases retained extension records and extension storage. Visual customization is themes / native Appearance; functionality is agent packages or custom repos; anything beyond that is an upstream PR or a fork.
 - Script tools can't access the network.
-- Two distinct distribution surfaces (v2.3) — don't conflate them. **Official agent packages** DO have an in-app catalog: Agents → Download Agents installs 29 verified packages, auto-updating, with per-Engine-major catalog lanes. **CSS/JS extensions** still have no marketplace — they're distributed as files the user installs manually.
+- Two distribution lanes for functionality (v2.3.4) — don't conflate them. **Official agent packages** have an in-app catalog: Agents → Download Agents installs 29 verified packages, auto-updating, with per-Engine-major catalog lanes. **Custom GitHub agent repositories** (#3861) are the third-party lane: disabled by default, manual preview/apply (no auto-sync), and an explicit per-repo trust confirmation.
 - Custom tool `parametersSchema` is JSON Schema but the UI validation is limited; malformed schemas may silently misbehave.
 - Core prompt assembly pipeline isn't extensible by arbitrary user code. As of 2.3, **official packages** can plug in server runtimes, commands, and client surfaces via the capability API (1.3) — but outside that reviewed packaging path you still can't hook into prompt assembly without forking.
 
@@ -203,8 +205,7 @@ Check whether there's an open GitHub issue or Discord thread where a maintainer 
 What to draft for the user to post: a 3–5 sentence "thinking of taking this — does it fit, and is anyone working on something adjacent?" message. Include the rough approach so maintainers can redirect early ("yes but use the existing X panel, not a new one").
 
 **This step does NOT apply to:**
-- **Extensions** (anything in the user's `extensions/` folder — they own those, no PR involved)
-- **Themes / custom CSS / custom JS** (user-installed, not core engine)
+- **Themes / custom CSS** (user-installed via Settings > Addons, not core engine)
 - **Lorebooks, character cards, custom tools** the user keeps on their own install or shares as zips
 
 Those are ideation work (Mode A). They skip this step entirely. This pre-flight is only for code that's getting merged into `Pasta-Devs/Marinara-Engine`. Bug fixes to the engine can also skip this if the bug is reproducible and the fix is small and obvious.
@@ -330,7 +331,7 @@ This pattern is highly recommended but not strictly required — if the user pre
 
 ### 5. Pre-submission checklist (mandatory — do not skip)
 
-**This applies to PRs to the Marinara engine ONLY.** Extensions, themes, custom CSS/JS, and anything the user is keeping on their own install do not need this checklist (no PR = no review gate). Skip straight to "does it work in your install?" testing for those.
+**This applies to PRs to the Marinara engine ONLY.** Themes, custom CSS, and anything the user is keeping on their own install do not need this checklist (no PR = no review gate). Skip straight to "does it work in your install?" testing for those.
 
 **For PRs to the engine: before you tell the user the PR is ready, walk them through this checklist and confirm each item ACTUALLY happened.** A passing CodeRabbit is the floor, not the ceiling — automated tooling cannot catch "the button is invisible in light mode" or "this throws when the textarea is empty." Only manual testing does.
 
@@ -435,7 +436,7 @@ The Marinara root version lives in `package.json`. When that changes, **all** of
 | `android/app/build.gradle` | Android `versionName` AND `versionCode` |
 | `README.md` | "Current stable release" line |
 
-**Android rule:** `versionName` must match the app version. `versionCode` must increase monotonically for every shipped APK — never reuse, never decrement. Baseline: `versionCode` is **38** at v2.3.3 (34/35/37 at 2.3.0/2.3.1/2.3.2), so the next shipped APK must exceed 38. Release-identity sync now also covers the Home release link and the What's New announcement.
+**Android rule:** `versionName` must match the app version. `versionCode` must increase monotonically for every shipped APK — never reuse, never decrement. Baseline: `versionCode` is **39** at v2.3.4 (34/35/37/38 at 2.3.0/2.3.1/2.3.2/2.3.3), so the next shipped APK must exceed 39. Release-identity sync now also covers the Home release link and the What's New announcement.
 
 **Don't edit these by hand.** Use the helper:
 
