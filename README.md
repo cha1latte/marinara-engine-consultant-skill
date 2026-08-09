@@ -17,14 +17,14 @@ It also enforces a mandatory pre-submission checklist before any PR is declared 
 
 **Built for beginners too.** The skill is tuned to assume the user may be brand new to coding, git, or development tooling. Before any significant action — opening a file, running a command, branching, editing code — Claude narrates what it's doing and why in plain-language analogies, then pauses so the user can follow along instead of silently batching changes. Concepts like branches, `pnpm check`, agents, and pattern-matching get explained the first time they come up, then dropped if the user demonstrates fluency. The goal: a hobbyist contributor with zero CS background can ship a working PR.
 
-The skill enforces every rule in CONTRIBUTING.md — server-side logging via Pino, link-the-issue PR bodies, in-same-PR doc updates, and version-drift checks across all 8 version-bearing files.
+The skill enforces every rule in CONTRIBUTING.md — server-side logging via Pino, link-the-issue PR bodies, in-same-PR doc updates, and version-drift checks across all 10 version-bearing files.
 
 ## Knowledge architecture
 
 The skill uses three tiers of authority:
 
 - **References** cover stable conceptual material — what agents are, how the decision hierarchy works, what fields a character card has — that remains consistent across releases.
-- **Live repo lookups** address current features and recent additions. The skill instructs Claude to fetch from `github.com/Pasta-Devs/Marinara-Engine` rather than guess at "does feature X exist in v1.5 yet?"
+- **Live repo lookups** address current features and recent additions. The skill instructs Claude to fetch from `github.com/Pasta-Devs/Marinara-Engine` rather than guess at "does feature X exist in 2.1 yet?"
 - **User input** fills in behavior-level details: when implementing, Claude asks for the concrete spec rather than inferring it.
 
 This structure acknowledges that the alternative — confident-sounding answers built on unverified assumptions about a moving target — is worse.
@@ -32,8 +32,32 @@ This structure acknowledges that the alternative — confident-sounding answers 
 ## Included materials
 
 - `SKILL.md` — main skill instructions covering both modes
-- `references/` — six condensed reference files (architecture, character cards, lorebooks, custom tools, extensions, agents, decision guide)
+- `references/` — seven condensed reference files (architecture, character cards, lorebooks, custom tools, extensions, agents, decision guide)
 - `assets/` — JSON and Markdown starter templates for character cards, custom agents, lorebook entries, and webhook tools
+
+## Installing & using the skill
+
+This repository *is* the `marinara-engine-expert` Claude skill (see the `name:` field in `SKILL.md`). To use it, put the repo's contents in a folder named `marinara-engine-expert` inside a Claude **skills directory**:
+
+| Scope | Skills directory |
+|---|---|
+| All your projects on this machine (recommended) | `~/.claude/skills/marinara-engine-expert/` |
+| A single project | `<project>/.claude/skills/marinara-engine-expert/` |
+
+The folder only needs to contain `SKILL.md` (plus `references/` and `assets/`). The cleanest way to install **and** keep it updatable is to clone it into that location and `git pull` for updates:
+
+```bash
+# Global — available in every project on this machine
+git clone https://github.com/<owner>/marinara-engine-expert-skill.git \
+  ~/.claude/skills/marinara-engine-expert
+
+# Pull updates later
+git -C ~/.claude/skills/marinara-engine-expert pull
+```
+
+Restart Claude Code (or reload skills) afterward. The skill then activates automatically when you mention Marinara Engine / Professor Mari / SpicyMarinara, or describe building characters, lorebooks, tools, agents, or extensions — in any project that can see the skills directory.
+
+The extra repo files (`README.md`, `audit/`, etc.) are harmless: Claude Code only loads `SKILL.md` and the files it references.
 
 ## When it activates
 
